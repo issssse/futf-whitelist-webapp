@@ -1,0 +1,54 @@
+{
+  "servers": [
+    {
+      "id": "survival",
+      "name": "FUTF Minecraftserver",
+      "description": "Main survival world for everyone",
+      "ip": "mc.futf.se:25568",
+      "accessLevel": "student",
+      "requiredEmailDomain": "@student.uu.se",
+      "appealPolicy": "students",
+      "contact": "minecraft@futf.se",
+      "rules": [
+        "No griefing other players' builds",
+        "Be respectful to everyone",
+        "No inappropriate content"
+      ]
+    },
+    {
+      "id": "creative",
+      "name": "Creative Server",
+      "description": "Creative building world for students",
+      "ip": "mc.futf.se:25567",
+      "accessLevel": "student",
+      "requiredEmailDomain": "@student.uu.se",
+      "appealPolicy": "students",
+      "contact": "minecraft@futf.se",
+      "rules": [
+        "No griefing other players' builds",
+        "Be respectful to everyone",
+        "No inappropriate content"
+      ]
+    },
+    {
+      "id": "anarky",
+      "name": "Anarchy",
+      "description": "Anarki server",
+      "ip": "mc.futf.se:25566",
+      "accessLevel": "open",
+      "appealPolicy": "never",
+      "contact": "minecraft@futf.se",
+      "rules": []
+    },
+    {
+      "id": "IT Gruppen",
+      "name": "It gruppens egna mysiga minecraftserver",
+      "description": "mc server",
+      "ip": "mc.futf.se",
+      "accessLevel": "open",
+      "appealPolicy": "never",
+      "contact": "minecraft@futf.se",
+      "rules": []
+    }
+  ]
+}

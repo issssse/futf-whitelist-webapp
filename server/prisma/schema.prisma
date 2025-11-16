@@ -1,0 +1,92 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String              @id @default(uuid())
+  email             String              @unique
+  minecraftName     String              @unique
+  realName          String?
+  isStudent         Boolean             @default(false)
+  verified          Boolean             @default(false)
+  verificationToken String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  serverAccess      ServerAccess[]
+  accessRequests    AccessRequest[]
+}
+
+model ServerAccess {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  serverId      String
+  rulesAccepted Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId, serverId])
+}
+
+model AccessRequest {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestedLevel    String   // "student" or other access levels
+  email             String
+  realName          String
+  note              String?
+  verified          Boolean  @default(false)
+  approved          Boolean  @default(false)
+  rejected          Boolean  @default(false)
+  verificationToken String?
+  reviewedBy        String?
+  reviewedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Admin {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String
+  email        String   @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model EmailVerification {
+  id        String   @id @default(uuid())
+  email     String
+  code      String
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Appeal {
+  id             String   @id @default(uuid())
+  serverId       String
+  userEmail      String
+  minecraftName  String
+  realName       String?
+  studentEmail   String?
+  reason         String?
+  status         String   @default("pending") // pending, approved, rejected
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}

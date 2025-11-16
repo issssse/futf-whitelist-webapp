@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@font-face {
+  font-family: 'Minecraft';
+  src: url('/fonts/MinecraftRegular.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'MinecraftTen';
+  src: url('/fonts/MinecraftTen.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    /* Gaming dark theme with orange accents */
+    --background: 220 20% 10%;
+    --foreground: 0 0% 95%;
+
+    --card: 220 15% 15%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 220 15% 12%;
+    --popover-foreground: 0 0% 95%;
+
+    /* Orange primary from FUTF */
+    --primary: 38 94% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Purple accent from gaming template */
+    --secondary: 270 50% 60%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 220 15% 20%;
+    --muted-foreground: 0 0% 60%;
+
+    --accent: 270 50% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 15% 25%;
+    --input: 220 15% 20%;
+    --ring: 38 94% 55%;
+
+    --radius: 0.75rem;
+
+    /* Success and info colors */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 100%;
+
+    /* Gradient accents */
+    --gradient-primary: linear-gradient(135deg, hsl(38, 94%, 55%), hsl(43, 100%, 59%));
+    --gradient-secondary: linear-gradient(135deg, hsl(270, 50%, 60%), hsl(280, 60%, 50%));
+    
+    /* Glow effects */
+    --glow-primary: 0 0 20px hsl(38 94% 55% / 0.5);
+    --glow-secondary: 0 0 20px hsl(270 50% 60% / 0.5);
+
+    /* Transitions */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Minecraft', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold tracking-tight;
+    font-family: 'MinecraftTen', 'Minecraft', cursive;
+  }
+}
+
+@layer utilities {
+  .glass-card {
+    @apply bg-card/50 backdrop-blur-md border border-border/50;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary to-yellow-400 bg-clip-text text-transparent;
+  }
+
+  .btn-glow {
+    box-shadow: var(--glow-primary);
+    transition: var(--transition-smooth);
+  }
+
+  .btn-glow:hover {
+    box-shadow: 0 0 30px hsl(38 94% 55% / 0.7);
+  }
+}
