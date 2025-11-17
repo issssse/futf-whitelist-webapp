@@ -2,7 +2,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { LogOut, Home, Shield } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import logo from '@/assets/logo.png';
+import logo from '@/assets/logo13.png';
 
 export const Navbar = () => {
   const navigate = useNavigate();

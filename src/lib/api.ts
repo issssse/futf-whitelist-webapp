@@ -93,7 +93,7 @@ export const rejectAppeal = (id: string, token: string) =>
   });
 
 // Admin endpoints
-export const adminLogin = (credentials: { username: string; password: string }) =>
+export const adminLogin = (credentials: { identifier: string; password: string }) =>
   api.post('/admin/login', credentials);
 
 export const getAccessRequests = (token: string) =>

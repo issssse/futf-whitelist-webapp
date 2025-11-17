@@ -12,7 +12,7 @@ const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
 
   useEffect(() => {
@@ -26,7 +26,7 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const response = await api.adminLogin({ username: email, password });
+      const response = await api.adminLogin({ identifier: identifier.trim(), password });
       localStorage.setItem('adminToken', response.data.token);
       toast({
         title: 'Success',
@@ -57,16 +57,16 @@ const Auth = () => {
         <CardContent>
           <form onSubmit={handleSignIn} className="space-y-4 mt-4">
             <div className="space-y-2">
-              <Label htmlFor="signin-email" className="flex items-center gap-2">
+              <Label htmlFor="signin-identifier" className="flex items-center gap-2">
                 <Mail className="w-4 h-4" />
-                Email
+                Email or Username
               </Label>
               <Input
-                id="signin-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@example.com"
+                id="signin-identifier"
+                type="text"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                placeholder="admin@example.com or adminuser"
                 required
               />
             </div>

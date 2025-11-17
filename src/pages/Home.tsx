@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -28,6 +28,18 @@ interface ServerType {
   required_email_domain?: string | null;
 }
 
+interface ServerStatusState {
+  online: boolean | null;
+  pending: boolean;
+  players?: {
+    online: number | null;
+    max: number | null;
+  } | null;
+}
+
+const STATUS_POLL_INTERVAL = 1500;
+const STATUS_REFRESH_INTERVAL = 30000;
+
 const DEV_MODE = false;
 
 const Home = () => {
@@ -41,7 +53,9 @@ const Home = () => {
   const [loading, setLoading] = useState(false);
   const [servers, setServers] = useState<ServerType[]>([]);
   const [loadingServers, setLoadingServers] = useState(true);
-  const [serverStatus, setServerStatus] = useState<Record<string, boolean>>({});
+  const [serverStatus, setServerStatus] = useState<Record<string, ServerStatusState>>({});
+  const statusPollers = useRef<Record<string, number>>({});
+  const isMountedRef = useRef(true);
   const [copiedServer, setCopiedServer] = useState<string | null>(null);
   const [verificationCode, setVerificationCode] = useState('');
   const [emailVerified, setEmailVerified] = useState(false);
@@ -49,21 +63,66 @@ const Home = () => {
   const [verifyingCode, setVerifyingCode] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
 
-  useEffect(() => {
-    loadServers();
-  }, []);
+  const mapServer = useCallback(
+    (server: any): ServerType => ({
+      ...server,
+      required_email_domain: server.requiredEmailDomain || server.required_email_domain || null,
+      appeal_policy: server.appealPolicy || server.appeal_policy || 'never',
+      student_required:
+        server.student_required !== undefined
+          ? server.student_required
+          : server.accessLevel === 'student',
+    }),
+    []
+  );
 
-  const mapServer = (server: any): ServerType => ({
-    ...server,
-    required_email_domain: server.requiredEmailDomain || server.required_email_domain || null,
-    appeal_policy: server.appealPolicy || server.appeal_policy || 'never',
-    student_required:
-      server.student_required !== undefined
-        ? server.student_required
-        : server.accessLevel === 'student',
-  });
+  const fetchServerStatus = useCallback(
+    async (serverId: string) => {
+      try {
+        const status = await checkServerStatus(serverId);
+        if (!isMountedRef.current) {
+          return;
+        }
 
-  const loadServers = async () => {
+        setServerStatus((prev) => ({
+          ...prev,
+          [serverId]: {
+            online: typeof status.online === 'boolean' ? status.online : null,
+            pending: status.pending || status.online === null,
+            players: status.players || null,
+          },
+        }));
+
+        const delay = status.pending ? STATUS_POLL_INTERVAL : STATUS_REFRESH_INTERVAL;
+        if (statusPollers.current[serverId]) {
+          window.clearTimeout(statusPollers.current[serverId]);
+        }
+        statusPollers.current[serverId] = window.setTimeout(() => {
+          fetchServerStatus(serverId);
+        }, delay);
+      } catch (error) {
+        console.error('Error refreshing server status:', error);
+        if (!isMountedRef.current) {
+          return;
+        }
+        if (statusPollers.current[serverId]) {
+          window.clearTimeout(statusPollers.current[serverId]);
+          delete statusPollers.current[serverId];
+        }
+        setServerStatus((prev) => ({
+          ...prev,
+          [serverId]: {
+            online: false,
+            pending: false,
+            players: null,
+          },
+        }));
+      }
+    },
+    []
+  );
+
+  const loadServers = useCallback(async () => {
     try {
       const response = await api.getServers();
       const sortedData = (response.data || []).map(mapServer).sort((a: ServerType, b: ServerType) => {
@@ -78,19 +137,19 @@ const Home = () => {
         setSelectedServer(sortedData[0].id);
       }
 
-      const statusChecks = await Promise.all(
-        sortedData.map(async (server) => ({
-          id: server.id,
-          online: await checkServerStatus(server.id),
-        }))
-      );
+      setServerStatus((prev) => {
+        const next = { ...prev };
+        sortedData.forEach((srv) => {
+          if (!next[srv.id]) {
+            next[srv.id] = { online: null, pending: true, players: null };
+          }
+        });
+        return next;
+      });
 
-      const statusMap = statusChecks.reduce((acc, { id, online }) => {
-        acc[id] = online;
-        return acc;
-      }, {} as Record<string, boolean>);
-
-      setServerStatus(statusMap);
+      sortedData.forEach((srv) => {
+        fetchServerStatus(srv.id);
+      });
     } catch (error) {
       console.error('Error loading servers:', error);
       toast({
@@ -101,7 +160,20 @@ const Home = () => {
     } finally {
       setLoadingServers(false);
     }
-  };
+  }, [toast, fetchServerStatus, mapServer]);
+
+  useEffect(() => {
+    loadServers();
+  }, [loadServers]);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      Object.values(statusPollers.current).forEach((timeoutId) => {
+        window.clearTimeout(timeoutId);
+      });
+    };
+  }, []);
 
   const server = servers.find((s) => s.id === selectedServer);
 
@@ -280,23 +352,37 @@ const Home = () => {
           <div className="mt-8 space-y-6 px-4 pb-8">
             <Tabs value={selectedServer} onValueChange={setSelectedServer} className="w-full">
               <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${servers.length}, 1fr)` }}>
-                {servers.map((srv) => (
-                  <TabsTrigger key={srv.id} value={srv.id} className="gap-2 relative">
-                    <Circle
-                      className={`w-2 h-2 absolute left-2 ${
-                        serverStatus[srv.id] ? 'fill-green-500 text-green-500' : 'fill-red-500 text-red-500'
-                      }`}
-                    />
-                    <Server className="w-4 h-4 ml-3" />
-                    {srv.name}
-                  </TabsTrigger>
-                ))}
+                {servers.map((srv) => {
+                  const statusInfo = serverStatus[srv.id];
+                  const statusPending = statusInfo?.pending || statusInfo?.online === null;
+                  const statusClasses = statusPending
+                    ? 'animate-pulse fill-muted-foreground text-muted-foreground'
+                    : statusInfo?.online
+                      ? 'fill-green-500 text-green-500'
+                      : 'fill-red-500 text-red-500';
+                  const statusLabel = statusPending
+                    ? 'Checking status'
+                    : statusInfo?.online
+                      ? 'Online'
+                      : 'Offline';
+
+                  return (
+                    <TabsTrigger key={srv.id} value={srv.id} className="gap-2 relative">
+                      <Circle
+                        className={`w-2 h-2 absolute left-2 transition-all ${statusClasses}`}
+                        aria-label={statusLabel}
+                        title={statusLabel}
+                      />
+                      <Server className="w-4 h-4 ml-3" />
+                      {srv.name}
+                    </TabsTrigger>
+                  );
+                })}
               </TabsList>
 
               {servers.map((srv, index) => {
                 const hasAccess = canAccessServer(srv);
                 const needsRequest = needsAccessRequest(srv);
-
                 const accentColors = [
                   'border-l-emerald-500/50 bg-emerald-500/5',
                   'border-l-blue-500/50 bg-blue-500/5',
@@ -310,9 +396,24 @@ const Home = () => {
                   <TabsContent key={srv.id} value={srv.id} className="space-y-6 mt-6">
                     <Card className={`border-l-4 ${cardAccent}`}>
                       <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Server className="w-5 h-5" />
-                          {srv.name}
+                        <CardTitle className="flex items-center justify-between gap-4 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <Server className="w-5 h-5" />
+                            {srv.name}
+                          </div>
+                          <div className="text-sm text-muted-foreground font-medium">
+                            Players:{' '}
+                            {serverStatus[srv.id]?.pending && serverStatus[srv.id]?.online === null
+                              ? '...'
+                              : serverStatus[srv.id]?.players?.online !== undefined &&
+                                  serverStatus[srv.id]?.players?.online !== null &&
+                                  serverStatus[srv.id]?.players?.max !== undefined &&
+                                  serverStatus[srv.id]?.players?.max !== null
+                                ? `${serverStatus[srv.id]?.players?.online}/${serverStatus[srv.id]?.players?.max}`
+                                : serverStatus[srv.id]?.online
+                                  ? serverStatus[srv.id]?.players?.online ?? 'Unknown'
+                                  : 'Offline'}
+                          </div>
                         </CardTitle>
                         <CardDescription>{srv.description}</CardDescription>
                       </CardHeader>

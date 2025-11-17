@@ -1,8 +1,8 @@
 const express = require('express');
-const net = require('net');
 const { PrismaClient } = require('@prisma/client');
 const { authenticateAdmin } = require('../middleware/auth.middleware');
 const { getServerConfig, getAllServers, createServer, updateServer, deleteServer } = require('../services/server.service');
+const { requestServerStatus } = require('../services/status.service');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -12,33 +12,19 @@ router.get('/', (req, res) => {
   res.json(getAllServers());
 });
 
-// Check server status
-router.get('/:serverId/status', async (req, res) => {
+// Check server status (non-blocking)
+router.get('/:serverId/status', (req, res) => {
   const server = getServerConfig(req.params.serverId);
   if (!server) {
     return res.status(404).json({ error: 'Server not found' });
   }
 
-  const [host, port] = server.ip.split(':');
-  const portNumber = parseInt(port || '25565', 10);
-
-  const pingServer = () =>
-    new Promise((resolve) => {
-      const socket = net.createConnection({ host, port: portNumber }, () => {
-        socket.end();
-        resolve(true);
-      });
-      socket.on('error', () => {
-        resolve(false);
-      });
-      socket.setTimeout(4000, () => {
-        socket.destroy();
-        resolve(false);
-      });
-    });
-
-  const online = await pingServer();
-  res.json({ online });
+  const status = requestServerStatus(server);
+  res.json({
+    online: typeof status.online === 'boolean' ? status.online : null,
+    pending: Boolean(status.pending),
+    checkedAt: status.checkedAt instanceof Date ? status.checkedAt.toISOString() : status.checkedAt,
+  });
 });
 
 // Get specific server

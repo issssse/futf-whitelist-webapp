@@ -2,9 +2,9 @@
   "servers": [
     {
       "id": "survival",
-      "name": "FUTF Minecraftserver",
-      "description": "Main survival world for everyone",
-      "ip": "mc.futf.se:25568",
+      "name": "MMO realms",
+      "description": "Random server i found",
+      "ip": "org.mmorealms.gg",
       "accessLevel": "student",
       "requiredEmailDomain": "@student.uu.se",
       "appealPolicy": "students",
@@ -33,22 +33,24 @@
     {
       "id": "anarky",
       "name": "Anarchy",
-      "description": "Anarki server",
+      "description": "Anarki server. HELLO! HI! HI AGAIN! HELLOOO HI..",
       "ip": "mc.futf.se:25566",
       "accessLevel": "open",
       "appealPolicy": "never",
       "contact": "minecraft@futf.se",
-      "rules": []
+      "rules": [],
+      "requiredEmailDomain": null
     },
     {
       "id": "IT Gruppen",
       "name": "It gruppens egna mysiga minecraftserver",
       "description": "mc server",
-      "ip": "mc.futf.se",
+      "ip": "mc.hypixel.net",
       "accessLevel": "open",
       "appealPolicy": "never",
       "contact": "minecraft@futf.se",
-      "rules": []
+      "rules": [],
+      "requiredEmailDomain": null
     }
   ]
 }

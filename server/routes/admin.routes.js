@@ -10,10 +10,26 @@ const prisma = new PrismaClient();
 // Admin login
 router.post('/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const {
+      username,
+      email,
+      identifier,
+      password,
+    } = req.body;
 
-    const admin = await prisma.admin.findUnique({
-      where: { username },
+    const loginIdentifier = (identifier || username || email || '').trim();
+
+    if (!loginIdentifier || !password) {
+      return res.status(400).json({ error: 'Username/email and password are required' });
+    }
+
+    const admin = await prisma.admin.findFirst({
+      where: {
+        OR: [
+          { username: loginIdentifier },
+          { email: loginIdentifier },
+        ],
+      },
     });
 
     if (!admin || !await bcrypt.compare(password, admin.passwordHash)) {

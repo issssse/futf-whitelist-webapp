@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/nodemon",
+  "watch": [
+    "server.js",
+    "routes",
+    "services",
+    "middleware"
+  ],
+  "ext": "js,mjs,cjs",
+  "ignore": [
+    "servers.json",
+    "servers/*.json"
+  ]
+}
