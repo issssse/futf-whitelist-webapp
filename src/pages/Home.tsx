@@ -406,9 +406,9 @@ const Home = () => {
                             {serverStatus[srv.id]?.pending && serverStatus[srv.id]?.online === null
                               ? '...'
                               : serverStatus[srv.id]?.players?.online !== undefined &&
-                                  serverStatus[srv.id]?.players?.online !== null &&
-                                  serverStatus[srv.id]?.players?.max !== undefined &&
-                                  serverStatus[srv.id]?.players?.max !== null
+                                serverStatus[srv.id]?.players?.online !== null &&
+                                serverStatus[srv.id]?.players?.max !== undefined &&
+                                serverStatus[srv.id]?.players?.max !== null
                                 ? `${serverStatus[srv.id]?.players?.online}/${serverStatus[srv.id]?.players?.max}`
                                 : serverStatus[srv.id]?.online
                                   ? serverStatus[srv.id]?.players?.online ?? 'Unknown'
@@ -481,7 +481,7 @@ const Home = () => {
                                 id="realname"
                                 value={realName}
                                 onChange={(e) => setRealName(e.target.value)}
-                                placeholder="Alex Andersson"
+                                placeholder="Karl Martinez"
                               />
                             </div>
                           </div>

@@ -43,6 +43,7 @@ Catalog of all API routes, services, and maintenance scripts.
 ### Public (`routes/public.routes.js`)
 - `GET /api/public/check-whitelist/:serverId?username=IGN`
 - `POST /api/public/get-names/:serverId`
+- `GET /api/check-user?username=IGN[&serverId=id]` *(plugin compatibility; falls back to `PLUGIN_DEFAULT_SERVER_ID`)*
 
 ## Services
 

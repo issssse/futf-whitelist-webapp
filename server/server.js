@@ -6,6 +6,7 @@ const authRoutes = require('./routes/auth.routes');
 const serverRoutes = require('./routes/server.routes');
 const adminRoutes = require('./routes/admin.routes');
 const publicRoutes = require('./routes/public.routes');
+const pluginRoutes = require('./routes/plugin.routes');
 const upgradeRoutes = require('./routes/upgrade.routes');
 const userRoutes = require('./routes/user.routes');
 const otpRoutes = require('./routes/otp.routes');
@@ -26,6 +27,7 @@ app.use('/api/upgrade', upgradeRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/otp', otpRoutes);
 app.use('/api/appeals', appealRoutes);
+app.use('/api', pluginRoutes);
 
 // Health check
 app.get('/', (req, res) => {

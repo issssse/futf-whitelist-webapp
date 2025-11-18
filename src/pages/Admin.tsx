@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Shield, Server as ServerIcon, Plus, CheckCircle, XCircle, Mail, User, Calendar } from 'lucide-react';
+import { Shield, Server as ServerIcon, Plus, CheckCircle, XCircle, Mail, User, Calendar, BookOpen } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import * as api from '@/lib/api';
 import type { Server } from '@/lib/types';
+
+const ADMIN_DOCS_URL = import.meta.env.VITE_ADMIN_DOCS_URL || '/docs/admin-operations.html';
 
 interface Appeal {
   id: string;
@@ -157,6 +159,12 @@ const Admin = () => {
             <Badge variant="secondary" className="mt-1">Administrator</Badge>
           </div>
         </div>
+        <Button asChild variant="outline" className="gap-2">
+          <a href={ADMIN_DOCS_URL} target="_blank" rel="noreferrer">
+            <BookOpen className="w-4 h-4" />
+            Admin Docs
+          </a>
+        </Button>
       </div>
 
       <div className="bg-muted/40 border-2 border-border p-6 space-y-4">

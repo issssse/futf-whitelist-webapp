@@ -42,6 +42,7 @@ SMTP_USER=none
 SMTP_PASS=none
 FRONTEND_URL=http://localhost:8080
 JWT_SECRET=super-secret-string
+PLUGIN_DEFAULT_SERVER_ID=survival
 ```
 
 > **Tip:** In production use `sslmode=require` and real SMTP credentials.

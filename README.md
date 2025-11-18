@@ -63,6 +63,7 @@ Docs structure:
 | `npm run build`               | Production frontend build           |
 | `npm run docs:*`              | VitePress docs (dev/build/serve)    |
 | `npm run dev:port` *(server)* | Nodemon Express server on port 5003 |
+| `npm run serve:prod`          | Static build + proxy server (port via `FRONTEND_PORT`) |
 
 ## Deploying
 

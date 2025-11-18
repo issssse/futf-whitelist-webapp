@@ -27,3 +27,5 @@ dist
 docs/.vitepress/dist
 server/node_modules
 server/prisma/dev.db
+server/.env
+.env

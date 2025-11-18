@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "docs:serve": "vitepress serve docs"
+    "docs:serve": "vitepress serve docs",
+    "serve:prod": "node ./frontend-server.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -47,8 +48,11 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "compression": "^1.8.1",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
+    "express": "^5.1.0",
+    "http-proxy-middleware": "^3.0.5",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
