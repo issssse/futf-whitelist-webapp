@@ -8,6 +8,7 @@ export interface Server {
   contact?: string;
   rules: string[];
   appealPolicy?: 'always' | 'students' | 'never';
+  order?: number;
 }
 
 export interface User {

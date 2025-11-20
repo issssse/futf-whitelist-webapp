@@ -10,7 +10,7 @@ This chapter provides diagnostics for common issues and guidance for extending t
 | OTP emails not sending | SMTP misconfigured or dev JSON transport | Set `SMTP_HOST`, ensure server reachable, watch API logs |
 | Admin login returns 500 | Admin table empty or DB offline | Seed admin via Prisma script, restart API |
 | Frontend cannot hit `/api` | Proxy port mismatch | Update `vite.config.ts` or set `VITE_API_URL` |
-| `servers.json` edits vanish | File overwritten by admin UI | Keep it in Git; avoid manual edits on prod unless necessary |
+| Server list missing updates | DB transaction failed | Check `pm2 logs web2-api-staging` for Prisma errors, rerun the action |
 
 ## 5.2 Debug commands
 
@@ -34,7 +34,7 @@ npx prisma studio
    - Add Axios helper + React UI usage
 
 2. **Add new server fields**
-   - Update `servers.json`
+   - Update the `ServerConfig` table (Prisma)
    - Adjust `Server` interface in `src/lib/types.ts`
    - Reflect changes in Admin editor and Home page
 

@@ -10,7 +10,8 @@ export default defineConfig({
         text: 'Admin Docs',
         items: [
           { text: 'Operations Overview', link: '/' },
-          { text: 'Admin Handbook', link: '/guide/admin-operations' }
+          { text: 'Admin Handbook', link: '/guide/admin-operations' },
+          { text: 'Admin Account Provisioning', link: '/guide/admin-accounts' }
         ]
       },
       {
@@ -43,7 +44,8 @@ export default defineConfig({
             { text: 'Chapter 3 – Backend Services', link: '/guide/chapter-3-backend' },
             { text: 'Chapter 4 – Deploy & Operate', link: '/guide/chapter-4-devops' },
             { text: 'Chapter 5 – Troubleshoot & Extend', link: '/guide/chapter-5-troubleshooting' },
-            { text: 'Admin Operations Handbook', link: '/guide/admin-operations' }
+            { text: 'Admin Operations Handbook', link: '/guide/admin-operations' },
+            { text: 'Admin Account Provisioning', link: '/guide/admin-accounts' }
           ]
         }
       ],
@@ -62,7 +64,8 @@ export default defineConfig({
           text: 'Admin Guide',
           items: [
             { text: 'Operations Overview', link: '/' },
-            { text: 'Admin Handbook', link: '/guide/admin-operations' }
+            { text: 'Admin Handbook', link: '/guide/admin-operations' },
+            { text: 'Admin Account Provisioning', link: '/guide/admin-accounts' }
           ]
         },
         {

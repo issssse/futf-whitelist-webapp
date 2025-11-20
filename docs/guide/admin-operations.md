@@ -34,10 +34,10 @@ This page is the operations manual for everyone who administers the FUTF Minecra
 
 ## 4. Managing servers
 
-The Servers tab provides a sortable list of all configured realms (`server/servers.json`). Typical workflows:
+The Servers tab provides a sortable list of all configured realms (Prisma `ServerConfig`). Typical workflows:
 
 - **Verify metadata** – Confirm IP/port, access level (`student` vs `public`), rule list, and contact email.
-- **Edit server info** – Use the edit drawer to update descriptions or rule text. All changes are persisted to `servers.json` and are immediately reflected in player views.
+- **Edit server info** – Use the edit drawer to update descriptions or rule text. All changes are persisted via Prisma and are immediately reflected in player views.
 - **Check connection status** – Each server card surfaces the last successful ping. If status returns `pending`, run `minecraft-server-util` checks from the backend server.
 - **Appeal policy** – Keep `appealPolicy` accurate (`students`, `never`) so the frontend routes appeals correctly.
 

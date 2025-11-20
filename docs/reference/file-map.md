@@ -48,8 +48,8 @@ Use this map to locate any feature quickly.
 | `routes/appeal.routes.js` | Appeal submission + moderation |
 | `routes/public.routes.js` | Public whitelist API |
 | `services/email.service.js` | Nodemailer + OTP helper |
-| `services/server.service.js` | `servers.json` loader/updater |
-| `servers.json` | Canonical server metadata |
+| `services/server.service.js` | Prisma helper for `ServerConfig` |
+| Prisma `ServerConfig` table | Canonical server metadata |
 | `middleware/auth.middleware.js` | JWT check for admin routes |
 | `prisma/schema.prisma` | Database schema |
 | `prisma/migrations/` | SQL history |

@@ -10,7 +10,7 @@ router.get('/check-whitelist/:serverId', async (req, res) => {
   try {
     const { serverId } = req.params;
     const { username } = req.query;
-    const server = getServerConfig(serverId);
+    const server = await getServerConfig(serverId);
 
     if (!server) {
       return res.status(404).json({ error: 'Server not found' });
@@ -55,7 +55,7 @@ router.post('/get-names/:serverId', async (req, res) => {
       return res.status(400).json({ error: 'usernames must be an array' });
     }
 
-    const server = getServerConfig(serverId);
+    const server = await getServerConfig(serverId);
     if (!server) {
       return res.status(404).json({ error: 'Server not found' });
     }

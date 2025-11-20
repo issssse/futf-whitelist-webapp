@@ -21,7 +21,7 @@ router.get('/check-user', async (req, res) => {
       return res.status(400).json({ error: 'serverId missing (set PLUGIN_DEFAULT_SERVER_ID or provide ?serverId=)', allowed: false });
     }
 
-    const server = getServerConfig(serverId);
+    const server = await getServerConfig(serverId);
     if (!server) {
       return res.status(404).json({ error: 'Server not found', allowed: false });
     }

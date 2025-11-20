@@ -31,8 +31,14 @@ const Verify = () => {
           setMessage(response.data.message || 'Upgrade request verified! Awaiting admin approval.');
         } else {
           const response = await verify(token);
-          const { userId, minecraftName } = response.data;
-          localStorage.setItem('userId', userId.toString());
+          const { userId, minecraftName, email } = response.data;
+          if (userId) {
+            localStorage.setItem('userId', userId.toString());
+            localStorage.setItem('verifiedUserId', userId.toString());
+          }
+          if (email) {
+            localStorage.setItem('verifiedEmail', email);
+          }
           setStatus('success');
           setMessage(`Welcome ${minecraftName || 'back'}! Your email has been verified.`);
         }
@@ -71,16 +77,23 @@ const Verify = () => {
             {status === 'success' && (isUpgrade ? 'Request Verified' : 'Email Verified')}
             {status === 'error' && 'Verification Failed'}
           </CardTitle>
-          <CardDescription>{message}</CardDescription>
+          <CardDescription>
+            {message}
+            {status === 'success' && !isUpgrade && (
+              <>
+                <br />
+                <span className="text-xs text-muted-foreground">
+                  You can now return to the original tab where you submitted your information—the form will unlock automatically once you close this window.
+                </span>
+              </>
+            )}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {status === 'success' && !isUpgrade && (
-            <Button
-              className="w-full btn-glow"
-              onClick={() => navigate('/')}
-            >
-              Go to Home
-            </Button>
+            <div className="text-center text-xs text-muted-foreground">
+              You can close this tab and continue in the original window.
+            </div>
           )}
           {status === 'success' && isUpgrade && (
             <Button

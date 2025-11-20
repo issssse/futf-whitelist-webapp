@@ -24,6 +24,14 @@ export const Navbar = () => {
     navigate('/');
   };
 
+  const handleAdminButton = () => {
+    if (location.pathname === '/auth') {
+      navigate('/');
+    } else {
+      navigate('/auth');
+    }
+  };
+
   return (
     <nav className="border-b border-border/50 bg-card/30 backdrop-blur-md sticky top-0 z-50">
       <div className="container mx-auto px-4 py-4">
@@ -64,11 +72,11 @@ export const Navbar = () => {
             ) : (
               <Button
                 variant="ghost"
-                onClick={() => navigate('/auth')}
+                onClick={handleAdminButton}
                 className="gap-2"
               >
                 <Shield className="w-4 h-4" />
-                Admin
+                {location.pathname === '/auth' ? 'Back Home' : 'Admin'}
               </Button>
             )}
           </div>

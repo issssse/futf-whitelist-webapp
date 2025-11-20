@@ -50,7 +50,7 @@ Run `npx prisma migrate deploy` to apply SQL, `npx prisma generate` to refresh t
 
 ## 3.5 Configuration source
 
-`server/servers.json` is the canonical record for server metadata (id, name, IP, accessLevel, rules, contact). Admin CRUD endpoints mutate this file so keep it under version control and protect with backups.
+`ServerConfig` (Prisma model) is the canonical record for server metadata (id, name, IP, accessLevel, rules, contact). Admin CRUD endpoints mutate it through Prisma, so use DB backups/snapshots to protect history.
 
 ## 3.6 Admin utilities
 

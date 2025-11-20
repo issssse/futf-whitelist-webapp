@@ -9,6 +9,20 @@ Welcome! This is the **operations landing page** for the Web2 platform. If you a
 
 > Need a deeper, technical explanation? Look for the <kbd>See developer docs</kbd> links sprinkled throughout. They jump straight into the dev section.
 
+## Choose your handbook
+
+**Admin operators**
+
+- Start here, then dive into the [Admin Operations Handbook](./guide/admin-operations.md) for per-button instructions.
+- Provision or rotate accounts with the new [Admin Account Provisioning guide](./guide/admin-accounts.md).
+- Use the “Admin Docs” button in the dashboard header to launch these pages in a new tab while you work.
+
+**Developers & infrastructure**
+
+- Jump straight to the [Setup Checklist](./setup.md) and the five developer chapters in the sidebar.
+- Keep the [Backend Reference](/reference/backend.md) nearby when touching Prisma, Express routes, or PM2.
+- Traefik/DNS/port questions should follow the procedures laid out in [Chapter 4 – Deploy & Operate](./guide/chapter-4-devops.md).
+
 ## 1. Daily admin checklist
 
 | Step | Action | Notes |
@@ -25,28 +39,40 @@ The dashboard is split into four working zones:
 
 1. **Header** – Displays your admin badge and includes the “Admin Docs” button. Clicking it opens the detailed handbook in a new tab.
 2. **Pending Appeals** – Collapsible list of all active upgrade/whitelist appeals. Buttons fire API calls and show toast confirmation.
-3. **Server Inventory** – Grid that mirrors `server/servers.json`. Use it to confirm which servers are `student` vs `public`, what the IP/ports are, and the rules players must accept.
+3. **Server Inventory** – Grid backed by the Prisma `ServerConfig` table. Use it to confirm which servers are `student` vs `public`, what the IP/ports are, and the rules players must accept.
 4. **Session controls** – Log out when you’re done; tokens live in `localStorage.adminToken`.
 
 If any panel looks broken or data fails to load, capture the toast error and escalate to the developers using the references in the footer.
 
 ## 3. Player lifecycle management
 
-### 3.1 Login & OTP support
+### 3.0 Intake wizard (homepage)
 
-1. Ask the player to enter their email on the homepage and type the six-digit OTP.
-2. If the OTP never arrives:
-   - Check the spam folder and ensure the email isn’t blocked by their provider.
+Players now walk through a four-step, sliding wizard on the public homepage:
+
+1. **Email & server** – Tabs across the top display every server. Once a player enters a valid email the next panel opens.
+2. **Identity** – Minecraft IGN + real name fields appear. Both must be filled to continue.
+3. **Verification** – Players press “Send Magic Link” which emails them a secure sign-in URL. Opening it on the same device flips the step to “verified.”
+4. **Finalise** – Appeals (if enabled) and the “I have read the rules” checkbox live here. The submit button stays disabled until the magic link is confirmed.
+
+Remind users that student-only servers require an email ending with the configured domain. If “Never Allow Appeals” is set, the UI simply tells them which domain they need.
+
+### 3.1 Magic link verification
+
+1. Ask the player to complete Step 1–2 on the homepage and click **Send Magic Link**.
+2. If the email never arrives:
+   - Check spam/junk folders and make sure the inbox accepts messages from `noreply@futf.se`.
    - Verify `SMTP_*` values in `server/.env` (developer doc [Backend Reference → Email service](/reference/backend.html#services)).
-   - Review `pm2 logs web2-api-staging` for SMTP or rate-limit errors.
-3. Resend OTPs only after confirming the inbox; repeatedly hitting “Send” triggers throttling.
+   - Review `pm2 logs web2-api-staging` for SMTP errors or provider throttling.
+3. They must open the link on the same device/browser. If they use another mailbox app, have them copy the link into the browser that submitted the request.
+4. If still stuck, resend the link (button text switches to “Resend Magic Link”) and escalate to developers if mail logs look clean.
 
 ### 3.2 Appeals workflow
 
 1. Appeals arrive whenever a player wants higher access (e.g., move from `public` to `student`).
 2. Expand the row to see their reason, student email, and submission date.
 3. Approve or reject; the backend immediately updates `ServerAccess` and notifies the user.
-4. If the appeal mentions a server not listed in your inventory, cross-check `server/servers.json` and alert the developers to add it.
+4. If the appeal mentions a server not listed in your inventory, cross-check the **Servers** view (or Prisma) and alert the developers to add it.
 
 ### 3.3 Removing or locking accounts
 
@@ -55,26 +81,28 @@ Occasionally you may need to suspend a user:
 - Revoke access via the developer API (`/api/admin/access-requests/:id/reject`) or ask a developer to run a Prisma script.
 - If an account is compromised, reset their password/OTP secret and notify them to relaunch the verification flow.
 
-## 4. Email, OTP, and security codes
+## 4. Email delivery troubleshooting
 
 | Symptom | What to check | Escalation |
 | --- | --- | --- |
-| OTP never arrives | `pm2 logs web2-api-staging` plus `SMTP_*` values in `.env`. Make sure Mailpit/Mailgun have capacity. | If the SMTP provider is down, ping developers to fail over. |
-| OTP always invalid | Ensure device clocks are accurate; players sometimes paste old codes. | Capture the email address and send to developers to inspect `EmailVerification` table. |
+| Magic link never arrives | `pm2 logs web2-api-staging` plus `SMTP_*` values in `.env`. Make sure the SMTP service isn’t blocking the sender. | If the relay is down or greylisting requests, ping developers to fail over. |
+| Link opens but UI still locked | The link was opened in a different browser/device. Ask the player to open it in the same browser where they initiated the request so `localStorage` syncs. | Capture the email and time, then alert developers to inspect the `User` table for `verified=false`. |
 | Appeal confirmation missing | Check `notifications` or server logs for 500 errors. Usually indicates SMTP credentials expired. | Developers need to rotate secrets. See [Setup → Environment variables](/setup). |
 
 ## 5. Server management playbook
 
-1. **Add or edit a server** – Use the dashboard drawer to update name, description, IP, rules, and access level. All changes are persisted to `server/servers.json` on disk.
+1. **Add or edit a server** – Use the dashboard drawer to update name, description, IP, rules, and access level. All changes are stored in the `ServerConfig` table via Prisma and take effect immediately.
 2. **Check online status** – The status badge pings the Minecraft host via `minecraft-server-util`. If it stays `pending`, verify the host/port combination or consult the infrastructure team.
 3. **Coordinate with server owners** – Update the `contact` field so players know who to email for gameplay issues.
 4. **Appeal policies** – Set `appealPolicy` to `students`, `never`, or `custom`. This toggles whether the frontend even shows the “Appeal” button for that server.
+5. **Order of appearance** – Use the ↑/↓ arrows in the admin dashboard to reorder servers. The sequence is stored in `server/data/servers.runtime.json`, so whatever you choose is exactly how players see the tab list.
 
 > Need to know how the JSON file is parsed or how pm2 reloads it? See [Developer Guide → Chapter 3 – Backend Services](/guide/chapter-3-backend.html).
 
 ## 6. Admin-specific quick links
 
 - [Admin Operations Handbook](./guide/admin-operations.md) – Deep dives on every button, plus scripts for creating admin accounts.
+- [Admin Account Provisioning](./guide/admin-accounts.md) – Dedicated walkthrough for creating, auditing, and rotating admin users.
 - [Developer Guide](./guide/chapter-1-foundations.md) – Architecture diagrams, Prisma schema walkthroughs, and deployment scripts.
 - [Backend Reference](/reference/backend.md) – Complete API list, useful when you need to verify an endpoint or share a curl command with a developer.
 - [Frontend Reference](/reference/frontend.md) – Component map for the React UI (helpful when reporting bugs with screenshots).

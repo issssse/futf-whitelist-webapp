@@ -15,7 +15,7 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Email, Minecraft name, and server ID are required' });
     }
 
-    const server = getServerConfig(serverId);
+    const server = await getServerConfig(serverId);
     if (!server) {
       return res.status(404).json({ error: 'Server not found' });
     }
@@ -106,7 +106,8 @@ router.get('/verify', async (req, res) => {
     res.json({
       message: 'Email verified successfully',
       userId: user.id,
-      minecraftName: user.minecraftName
+      minecraftName: user.minecraftName,
+      email: user.email
     });
   } catch (error) {
     console.error(error);

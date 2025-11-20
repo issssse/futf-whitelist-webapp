@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Shield, Server as ServerIcon, Plus, CheckCircle, XCircle, Mail, User, Calendar, BookOpen } from 'lucide-react';
+import { Shield, Server as ServerIcon, Plus, CheckCircle, XCircle, Mail, User, Calendar, BookOpen, ArrowUp, ArrowDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import * as api from '@/lib/api';
@@ -51,11 +51,12 @@ const Admin = () => {
         api.getAppeals(token),
       ]);
 
-      const sortedServers = (serversRes.data || []).sort((a: Server, b: Server) => {
-        if (a.name.includes('Survival')) return -1;
-        if (b.name.includes('Survival')) return 1;
-        return a.name.localeCompare(b.name);
-      });
+      const sortedServers = (serversRes.data || [])
+        .map((srv: Server & { order?: number }, index: number) => ({
+          ...srv,
+          order: typeof srv.order === 'number' ? srv.order : index,
+        }))
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
       setServers(sortedServers);
       setAppeals(appealsRes.data || []);
     } catch (error: any) {
@@ -110,6 +111,32 @@ const Admin = () => {
         variant: 'destructive',
         title: 'Error',
         description: 'Failed to reject appeal',
+      });
+    }
+  };
+
+  const handleReorder = async (serverId: string, direction: 'up' | 'down') => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    const index = servers.findIndex((s) => s.id === serverId);
+    if (index === -1) return;
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= servers.length) return;
+
+    const previous = [...servers];
+    const next = [...servers];
+    [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+    setServers(next);
+
+    try {
+      await api.reorderServers(next.map((srv) => srv.id), token);
+    } catch (error) {
+      console.error('Error reordering servers:', error);
+      setServers(previous);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to update server order',
       });
     }
   };
@@ -284,7 +311,7 @@ const Admin = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {servers.map((server) => (
+          {servers.map((server, index) => (
             <Card key={server.id} className="border-2">
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -295,13 +322,31 @@ const Admin = () => {
                     </CardTitle>
                     <CardDescription className="mt-1">{server.description}</CardDescription>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate(`/admin/server/${server.id}`)}
-                  >
-                    Edit
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleReorder(server.id, 'up')}
+                      disabled={index === 0}
+                    >
+                      <ArrowUp className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleReorder(server.id, 'down')}
+                      disabled={index === servers.length - 1}
+                    >
+                      <ArrowDown className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/admin/server/${server.id}`)}
+                    >
+                      Edit
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>

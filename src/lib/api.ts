@@ -21,6 +21,13 @@ export const updateProfile = (userId: string, data: { realName?: string; minecra
 export const verify = (token: string) => 
   api.get(`/auth/verify?token=${token}`);
 
+export const registerUser = (payload: {
+  email: string;
+  minecraftName: string;
+  realName?: string;
+  serverId: string;
+}) => api.post('/auth/register', payload);
+
 // Server endpoints
 export const getServers = () => 
   api.get('/servers');
@@ -46,6 +53,11 @@ export const updateServer = (serverId: string, data: any, token: string) =>
 
 export const deleteServer = (serverId: string, token: string) =>
   api.delete(`/servers/${serverId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+export const reorderServers = (order: string[], token: string) =>
+  api.post('/servers/reorder', { order }, {
     headers: { Authorization: `Bearer ${token}` },
   });
 
@@ -116,6 +128,7 @@ export default {
   getProfile,
   updateProfile,
   verify,
+  registerUser,
   getServers,
   getServer,
   acceptRules,
@@ -126,6 +139,7 @@ export default {
   requestUpgrade,
   verifyUpgrade,
   sendOtp,
+  reorderServers,
   verifyOtp,
   createAppeal,
   getAppeals,

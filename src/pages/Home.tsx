@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,6 +12,7 @@ import { checkServerStatus } from '@/lib/serverStatus';
 import * as api from '@/lib/api';
 import dashboardBg from '@/assets/dashboard-bg.jpg';
 import heroBg from '@/assets/hero-bg.jpg';
+import { cn } from '@/lib/utils';
 
 interface ServerType {
   id: string;
@@ -26,6 +27,7 @@ interface ServerType {
   student_required?: boolean;
   appeal_policy?: 'always' | 'students' | 'never';
   required_email_domain?: string | null;
+  order?: number;
 }
 
 interface ServerStatusState {
@@ -37,10 +39,83 @@ interface ServerStatusState {
   } | null;
 }
 
+interface StepCardProps {
+  step: number;
+  title: string;
+  description: string;
+  open: boolean;
+  children: ReactNode;
+  className?: string;
+}
+
+const StepCard = ({ step, title, description, open, children, className }: StepCardProps) => (
+  <div
+    className={cn(
+      'rounded-2xl border border-border/60 bg-card/40 overflow-hidden transition-all duration-500',
+      open ? 'mt-4 p-4 opacity-100 translate-y-0 max-h-[1600px]' : 'mt-0 p-0 opacity-0 -translate-y-3 max-h-0 border-transparent pointer-events-none',
+      className
+    )}
+    aria-hidden={!open}
+    data-open={open}
+  >
+    <div className="flex items-start gap-3">
+      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary">
+        {step}
+      </div>
+      <div>
+        <h3 className="font-semibold leading-tight">{title}</h3>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </div>
+    </div>
+    <div className="mt-4 space-y-4">{children}</div>
+  </div>
+);
+
 const STATUS_POLL_INTERVAL = 1500;
 const STATUS_REFRESH_INTERVAL = 30000;
-
 const DEV_MODE = false;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const normalizeDomain = (value?: string | null) => {
+  if (!value) return null;
+  const trimmed = value.trim().toLowerCase();
+  return trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
+};
+
+const isStudentEmailForServer = (address: string, target?: ServerType) => {
+  if (DEV_MODE) return true;
+  if (!target) return false;
+  const email = address.trim().toLowerCase();
+  if (!EMAIL_REGEX.test(email)) return false;
+  const domain = normalizeDomain(target.required_email_domain || target.requiredEmailDomain || null);
+  if (!domain) return false;
+  return email.endsWith(domain);
+};
+
+const serverRequiresStudentEmail = (target?: ServerType) => {
+  if (!target) return false;
+  if (typeof target.student_required === 'boolean') return target.student_required;
+  return target.accessLevel === 'student';
+};
+
+const canAccessServer = (address: string, target?: ServerType) => {
+  if (DEV_MODE) return true;
+  if (!target) return false;
+  if (!serverRequiresStudentEmail(target)) return true;
+  return isStudentEmailForServer(address, target);
+};
+
+const shouldShowAppeal = (address: string, target?: ServerType) => {
+  if (DEV_MODE) return false;
+  if (!target) return false;
+  if (!EMAIL_REGEX.test(address.trim())) return false;
+  const policy = target.appeal_policy || target.appealPolicy || 'never';
+  const studentEmail = isStudentEmailForServer(address, target);
+  if (policy === 'never') return false;
+  if (policy === 'always') return !studentEmail;
+  if (policy === 'students') return studentEmail;
+  return false;
+};
 
 const Home = () => {
   const { toast } = useToast();
@@ -55,16 +130,17 @@ const Home = () => {
   const [loadingServers, setLoadingServers] = useState(true);
   const [serverStatus, setServerStatus] = useState<Record<string, ServerStatusState>>({});
   const statusPollers = useRef<Record<string, number>>({});
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const tabListRef = useRef<HTMLDivElement | null>(null);
   const isMountedRef = useRef(true);
   const [copiedServer, setCopiedServer] = useState<string | null>(null);
-  const [verificationCode, setVerificationCode] = useState('');
   const [emailVerified, setEmailVerified] = useState(false);
-  const [sendingCode, setSendingCode] = useState(false);
-  const [verifyingCode, setVerifyingCode] = useState(false);
-  const [codeSent, setCodeSent] = useState(false);
+  const [linkSending, setLinkSending] = useState(false);
+  const [linkSent, setLinkSent] = useState(false);
+  const [verifiedUserId, setVerifiedUserId] = useState<string | null>(null);
 
   const mapServer = useCallback(
-    (server: any): ServerType => ({
+    (server: any, index?: number): ServerType => ({
       ...server,
       required_email_domain: server.requiredEmailDomain || server.required_email_domain || null,
       appeal_policy: server.appealPolicy || server.appeal_policy || 'never',
@@ -72,6 +148,7 @@ const Home = () => {
         server.student_required !== undefined
           ? server.student_required
           : server.accessLevel === 'student',
+      order: typeof server.order === 'number' ? server.order : index ?? 0,
     }),
     []
   );
@@ -125,11 +202,9 @@ const Home = () => {
   const loadServers = useCallback(async () => {
     try {
       const response = await api.getServers();
-      const sortedData = (response.data || []).map(mapServer).sort((a: ServerType, b: ServerType) => {
-        if (a.name.includes('Survival')) return -1;
-        if (b.name.includes('Survival')) return 1;
-        return a.name.localeCompare(b.name);
-      });
+      const sortedData = (response.data || [])
+        .map((srv: any, index: number) => mapServer(srv, index))
+        .sort((a: ServerType, b: ServerType) => (a.order ?? 0) - (b.order ?? 0));
 
       setServers(sortedData);
 
@@ -167,6 +242,21 @@ const Home = () => {
   }, [loadServers]);
 
   useEffect(() => {
+    if (selectedServer && tabRefs.current[selectedServer]) {
+      tabRefs.current[selectedServer]?.scrollIntoView({
+        behavior: 'smooth',
+        inline: 'center',
+        block: 'nearest',
+      });
+    }
+  }, [selectedServer]);
+
+  useEffect(() => {
+    setRulesAccepted(false);
+    setNote('');
+  }, [selectedServer]);
+
+  useEffect(() => {
     return () => {
       isMountedRef.current = false;
       Object.values(statusPollers.current).forEach((timeoutId) => {
@@ -176,89 +266,89 @@ const Home = () => {
   }, []);
 
   const server = servers.find((s) => s.id === selectedServer);
+  const trimmedEmail = email.trim();
+  const trimmedMinecraftName = minecraftName.trim();
+  const trimmedRealName = realName.trim();
+  const emailValid = EMAIL_REGEX.test(trimmedEmail);
+  const identityFieldsComplete = Boolean(trimmedMinecraftName && trimmedRealName);
+  const showIdentitySection = emailValid;
+  const showVerificationSection = showIdentitySection && identityFieldsComplete;
+  const showFinalSection = emailVerified;
+  const selectedServerAppeal = server ? shouldShowAppeal(trimmedEmail, server) : false;
 
-  const isStudentEmail = (email: string) => {
-    if (DEV_MODE) return true;
-    const domain = server?.required_email_domain;
-    if (!domain) return false;
-    return email.toLowerCase().endsWith(domain.toLowerCase());
-  };
-
-  const canAccessServer = (server: ServerType) => {
-    if (DEV_MODE) return true;
-    if (!server.student_required) return true;
-    return isStudentEmail(email);
-  };
-
-  const needsAccessRequest = (server: ServerType) => {
-    if (DEV_MODE) return false;
-    const policy = server.appeal_policy || 'never';
-    if (canAccessServer(server)) return false;
-    if (policy === 'never') return false;
-    if (policy === 'always') return true;
-    if (policy === 'students' && isStudentEmail(email)) return true;
-    return false;
-  };
-
-  const handleSendCode = async () => {
-    if (!email) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Please enter your email address',
-      });
-      return;
+  useEffect(() => {
+    if (!selectedServerAppeal) {
+      setNote('');
     }
+  }, [selectedServerAppeal]);
 
-    setSendingCode(true);
-    try {
-      await api.sendOtp(email);
+  useEffect(() => {
+    setLinkSent(false);
+  }, [trimmedEmail]);
 
-      setCodeSent(true);
-      toast({
-        title: 'Code Sent!',
-        description: 'Check your email for the verification code',
-      });
-    } catch (error: any) {
-      console.error('Error sending code:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.response?.data?.error || 'Failed to send verification code',
-      });
-    } finally {
-      setSendingCode(false);
-    }
-  };
-
-  const handleVerifyCode = async () => {
-    if (!verificationCode) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Please enter the verification code',
-      });
-      return;
-    }
-
-    setVerifyingCode(true);
-    try {
-      await api.verifyOtp(email, verificationCode);
-
+  const syncVerifiedState = useCallback(() => {
+    const storedEmail = (localStorage.getItem('verifiedEmail') || '').trim().toLowerCase();
+    const storedUserId = localStorage.getItem('verifiedUserId');
+    if (storedEmail && storedEmail === trimmedEmail.toLowerCase()) {
       setEmailVerified(true);
-      toast({
-        title: 'Email Verified!',
-        description: 'You can now submit your whitelist request',
-      });
-    } catch (error: any) {
-      console.error('Error verifying code:', error);
+      setVerifiedUserId(storedUserId);
+    } else {
+      setEmailVerified(false);
+      setVerifiedUserId(null);
+    }
+  }, [trimmedEmail]);
+
+  useEffect(() => {
+    syncVerifiedState();
+  }, [syncVerifiedState]);
+
+  useEffect(() => {
+    const handler = () => syncVerifiedState();
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, [syncVerifiedState]);
+
+  const handleSendMagicLink = async () => {
+    if (!emailValid || !server) {
       toast({
         variant: 'destructive',
-        title: 'Verification Failed',
-        description: error.response?.data?.error || 'Invalid or expired code',
+        title: 'Missing information',
+        description: 'Please enter a valid email and select a server before requesting a link.',
+      });
+      return;
+    }
+
+    if (!identityFieldsComplete) {
+      toast({
+        variant: 'destructive',
+        title: 'Player details required',
+        description: 'Fill in your Minecraft username and real name first.',
+      });
+      return;
+    }
+
+    setLinkSending(true);
+    try {
+      await api.registerUser({
+        email: trimmedEmail,
+        minecraftName: trimmedMinecraftName,
+        realName: trimmedRealName || undefined,
+        serverId: server.id,
+      });
+      setLinkSent(true);
+      toast({
+        title: 'Magic link sent!',
+        description: `Check ${trimmedEmail} for your sign-in link. Open it on this device to continue.`,
+      });
+    } catch (error: any) {
+      console.error('Error sending magic link:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Failed to send link',
+        description: error.response?.data?.error || 'Unable to send verification link',
       });
     } finally {
-      setVerifyingCode(false);
+      setLinkSending(false);
     }
   };
 
@@ -283,22 +373,31 @@ const Home = () => {
       return;
     }
 
+    if (!canAccessServer(trimmedEmail, server) && !shouldShowAppeal(trimmedEmail, server)) {
+      toast({
+        variant: 'destructive',
+        title: 'Student email required',
+        description: server.required_email_domain
+          ? `This server requires an email ending with ${server.required_email_domain}`
+          : 'This server requires a student email',
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      const needsApproval = needsAccessRequest(server);
-      const autoApproved = canAccessServer(server);
-
       await api.createAppeal({
         serverId: server.id,
-        email,
+        email: trimmedEmail,
         minecraftName,
         realName,
         note,
       });
 
+      const directlyGranted = canAccessServer(trimmedEmail, server);
       toast({
-        title: autoApproved ? 'Whitelist Applied!' : 'Request Submitted!',
-        description: autoApproved
+        title: directlyGranted ? 'Whitelist Applied!' : 'Request Submitted!',
+        description: directlyGranted
           ? `You now have access to ${server.name}!`
           : 'Your request has been submitted for review. Admins have been notified.',
       });
@@ -309,8 +408,8 @@ const Home = () => {
       setNote('');
       setRulesAccepted(false);
       setEmailVerified(false);
-      setVerificationCode('');
-      setCodeSent(false);
+      setLinkSent(false);
+      setVerifiedUserId(null);
     } catch (error: any) {
       console.error('Error submitting request:', error);
       toast({
@@ -351,13 +450,17 @@ const Home = () => {
         ) : (
           <div className="mt-8 space-y-6 px-4 pb-8">
             <Tabs value={selectedServer} onValueChange={setSelectedServer} className="w-full">
-              <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${servers.length}, 1fr)` }}>
-                {servers.map((srv) => {
-                  const statusInfo = serverStatus[srv.id];
-                  const statusPending = statusInfo?.pending || statusInfo?.online === null;
-                  const statusClasses = statusPending
-                    ? 'animate-pulse fill-muted-foreground text-muted-foreground'
-                    : statusInfo?.online
+              <div className="relative" ref={tabListRef}>
+                <TabsList
+                  className="relative z-0 flex w-full min-h-[52px] gap-2 overflow-x-auto rounded-xl border border-border/60 bg-muted/40 p-1 scroll-smooth snap-x snap-mandatory
+                    [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']"
+                >
+                  {servers.map((srv) => {
+                    const statusInfo = serverStatus[srv.id];
+                    const statusPending = statusInfo?.pending || statusInfo?.online === null;
+                    const statusClasses = statusPending
+                      ? 'animate-pulse fill-muted-foreground text-muted-foreground'
+                      : statusInfo?.online
                       ? 'fill-green-500 text-green-500'
                       : 'fill-red-500 text-red-500';
                   const statusLabel = statusPending
@@ -366,23 +469,45 @@ const Home = () => {
                       ? 'Online'
                       : 'Offline';
 
-                  return (
-                    <TabsTrigger key={srv.id} value={srv.id} className="gap-2 relative">
-                      <Circle
-                        className={`w-2 h-2 absolute left-2 transition-all ${statusClasses}`}
-                        aria-label={statusLabel}
-                        title={statusLabel}
-                      />
-                      <Server className="w-4 h-4 ml-3" />
-                      {srv.name}
-                    </TabsTrigger>
-                  );
-                })}
-              </TabsList>
+                    return (
+                      <TabsTrigger
+                        key={srv.id}
+                        value={srv.id}
+                        ref={(node) => {
+                          tabRefs.current[srv.id] = node;
+                        }}
+                        className={cn(
+                          'relative flex-shrink-0 min-w-[160px] snap-start rounded-lg px-4 py-2 text-sm transition-colors',
+                          selectedServer === srv.id
+                            ? 'bg-background text-foreground shadow-sm'
+                            : 'bg-transparent text-muted-foreground hover:bg-card/40'
+                        )}
+                      >
+                        <Circle
+                          className={`w-2 h-2 absolute left-3 transition-all ${statusClasses}`}
+                          aria-label={statusLabel}
+                          title={statusLabel}
+                        />
+                        <Server className="w-4 h-4 ml-5" />
+                        {srv.name}
+                      </TabsTrigger>
+                    );
+                  })}
+                </TabsList>
+                <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-10 rounded-l-xl bg-gradient-to-r from-background via-background/80 to-transparent md:hidden" />
+                <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10 rounded-r-xl bg-gradient-to-l from-background via-background/80 to-transparent md:hidden" />
+              </div>
 
               {servers.map((srv, index) => {
-                const hasAccess = canAccessServer(srv);
-                const needsRequest = needsAccessRequest(srv);
+                const hasAccess = canAccessServer(trimmedEmail, srv);
+                const needsRequest = shouldShowAppeal(trimmedEmail, srv);
+                const showAppealSection = needsRequest;
+                const requiredDomain = srv.required_email_domain || srv.requiredEmailDomain || '';
+                const appealUnavailableMessage =
+                  serverRequiresStudentEmail(srv) &&
+                  EMAIL_REGEX.test(trimmedEmail) &&
+                  !isStudentEmailForServer(trimmedEmail, srv) &&
+                  !showAppealSection;
                 const accentColors = [
                   'border-l-emerald-500/50 bg-emerald-500/5',
                   'border-l-blue-500/50 bg-blue-500/5',
@@ -437,111 +562,169 @@ const Home = () => {
                           </Button>
                         </div>
 
-                        <div className="space-y-4">
+                        <StepCard
+                          step={1}
+                          title="Contact email"
+                          description="Enter the address that should receive verification codes. The selected tab already represents your target server."
+                          open
+                          className="mt-0"
+                        >
                           <div className="space-y-2">
-                            <Label htmlFor="email" className="flex items-center gap-2">
+                            <Label htmlFor={`email-${srv.id}`} className="flex items-center gap-2">
                               <Mail className="w-4 h-4" />
                               Email Address
                             </Label>
                             <Input
-                              id="email"
+                              id={`email-${srv.id}`}
                               type="email"
                               value={email}
                               onChange={(e) => setEmail(e.target.value)}
                               placeholder={
-                                srv.required_email_domain ? `your.email@${srv.required_email_domain}` : 'your.email@example.com'
+                                requiredDomain
+                                  ? `your.name${requiredDomain}`
+                                  : 'your.email@example.com'
                               }
                             />
-                            {srv.student_required && !isStudentEmail(email) && email && srv.required_email_domain && (
-                              <p className="text-sm text-destructive">
-                                Student email required ({srv.required_email_domain})
-                              </p>
-                            )}
+                            <p className="text-xs text-muted-foreground">
+                              As soon as the email looks valid, the identity section will slide into view.
+                            </p>
                           </div>
+                          {serverRequiresStudentEmail(srv) && trimmedEmail && !isStudentEmailForServer(trimmedEmail, srv) && (
+                            <p className="text-sm text-destructive">
+                              {requiredDomain
+                                ? `Student email required (${requiredDomain})`
+                                : 'Student email required'}
+                            </p>
+                          )}
+                        </StepCard>
 
+                        <StepCard
+                          step={2}
+                          title="Player details"
+                          description="Tell us who you are in Minecraft and in real life."
+                          open={showIdentitySection}
+                        >
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                              <Label htmlFor="minecraft" className="flex items-center gap-2">
+                              <Label htmlFor={`minecraft-${srv.id}`} className="flex items-center gap-2">
                                 <Gamepad2 className="w-4 h-4" />
                                 Minecraft Username
                               </Label>
                               <Input
-                                id="minecraft"
+                                id={`minecraft-${srv.id}`}
                                 value={minecraftName}
                                 onChange={(e) => setMinecraftName(e.target.value)}
                                 placeholder="Steve"
                               />
                             </div>
                             <div>
-                              <Label htmlFor="realname" className="flex items-center gap-2">
+                              <Label htmlFor={`realname-${srv.id}`} className="flex items-center gap-2">
                                 <CheckCircle2 className="w-4 h-4" />
                                 Real Name
                               </Label>
                               <Input
-                                id="realname"
+                                id={`realname-${srv.id}`}
                                 value={realName}
                                 onChange={(e) => setRealName(e.target.value)}
                                 placeholder="Karl Martinez"
                               />
                             </div>
                           </div>
-                        </div>
+                        </StepCard>
 
-                        <div className="space-y-2">
-                          <Label>Verification</Label>
-                          <div className="grid gap-2 md:grid-cols-2">
-                            <Button onClick={handleSendCode} disabled={sendingCode} className="w-full">
-                              {sendingCode ? 'Sending...' : codeSent ? 'Resend Code' : 'Send Code'}
+                        <StepCard
+                          step={3}
+                          title="Verify email"
+                          description="We’ll email you a secure sign-in link. Open it on this device to unlock the final step."
+                          open={showVerificationSection}
+                        >
+                          <div className="space-y-3">
+                            <Button
+                              onClick={handleSendMagicLink}
+                              disabled={linkSending || !emailValid || !identityFieldsComplete}
+                              className="w-full"
+                            >
+                              {linkSending ? 'Sending…' : linkSent ? 'Resend Magic Link' : 'Send Magic Link'}
                             </Button>
-                            <div className="flex gap-2">
-                              <Input
-                                value={verificationCode}
-                                onChange={(e) => setVerificationCode(e.target.value)}
-                                placeholder="Enter code"
-                              />
-                              <Button onClick={handleVerifyCode} disabled={verifyingCode}>
-                                Verify
-                              </Button>
-                            </div>
+                            {linkSent && (
+                              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm text-primary">
+                                We sent a link to <span className="font-semibold">{trimmedEmail}</span>.
+                                If you opened it in another tab on this device, this step will unlock automatically.
+                              </div>
+                            )}
+                            {!linkSent && (
+                              <p className="text-xs text-muted-foreground">
+                                Links expire quickly. If it gets lost, just press the button again to resend.
+                              </p>
+                            )}
+                            {emailVerified && (
+                              <p className="text-sm text-green-500">
+                                Magic link confirmed! You can now complete your whitelist request.
+                              </p>
+                            )}
                           </div>
-                          {emailVerified && (
-                            <p className="text-sm text-green-500">Email verified!</p>
+                        </StepCard>
+
+                        <StepCard
+                          step={4}
+                          title="Finalise request"
+                          description="Include an appeal if required and accept the server rules."
+                          open={showFinalSection}
+                        >
+                          {srv.rules && srv.rules.length > 0 && (
+                            <div className="rounded-2xl border border-border/60 bg-background/40 p-4 space-y-2">
+                              <p className="text-sm font-semibold">Server rules</p>
+                              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                                {srv.rules.map((rule, idx) => (
+                                  <li key={`${srv.id}-rule-${idx}`}>{rule}</li>
+                                ))}
+                              </ul>
+                            </div>
                           )}
-                        </div>
 
-                        <div className="space-y-2">
-                          <Label>Additional Information</Label>
-                          <Textarea
-                            value={note}
-                            onChange={(e) => setNote(e.target.value)}
-                            placeholder="Tell us about yourself..."
-                            rows={4}
-                          />
-                        </div>
+                          {showAppealSection && (
+                            <div className="space-y-2">
+                              <Label>Appeal for whitelist</Label>
+                              <Textarea
+                                value={note}
+                                onChange={(e) => setNote(e.target.value)}
+                                placeholder="Tell us why you'd like access..."
+                                rows={4}
+                              />
+                            </div>
+                          )}
 
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id="rules"
-                            checked={rulesAccepted}
-                            onCheckedChange={(checked) => setRulesAccepted(!!checked)}
-                          />
-                          <Label htmlFor="rules" className="text-sm text-muted-foreground">
-                            I have read and agree to the server rules
-                          </Label>
-                        </div>
+                          {appealUnavailableMessage && (
+                            <p className="text-sm text-destructive">
+                              Appeals are disabled for this email. Please use your student address
+                              {requiredDomain ? ` (${requiredDomain})` : ''} to join this server.
+                            </p>
+                          )}
+
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`rules-${srv.id}`}
+                              checked={rulesAccepted}
+                              onCheckedChange={(checked) => setRulesAccepted(!!checked)}
+                            />
+                            <Label htmlFor={`rules-${srv.id}`} className="text-sm text-muted-foreground">
+                              I have read and agree to the server rules
+                            </Label>
+                          </div>
+                        </StepCard>
 
                         <Button
                           onClick={handleSubmit}
                           className="w-full"
-                          disabled={loading}
+                          disabled={loading || !emailVerified || !rulesAccepted}
                         >
                           {loading
                             ? 'Submitting...'
                             : needsRequest
-                              ? 'Submit Request'
-                              : canAccessServer(srv)
+                              ? 'Submit Appeal'
+                              : canAccessServer(trimmedEmail, srv)
                                 ? 'Join Server'
-                                : 'Not Available'}
+                                : 'Submit Request'}
                         </Button>
                       </CardContent>
                     </Card>

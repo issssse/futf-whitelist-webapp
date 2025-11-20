@@ -43,7 +43,7 @@ Set `VITE_API_URL` per environment to ensure frontend proxies the correct API.
 
 - Use `pg_dump` nightly; store in secure bucket.
 - Keep migration history in Git (`server/prisma/migrations`).
-- Snapshot `servers.json` before editing via Admin UI in production.
+- Snapshot the `ServerConfig` table (eg, via `pg_dump` or `prisma studio`) before bulk edits in production.
 
 ## 4.6 Zero-downtime tips
 

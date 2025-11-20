@@ -48,7 +48,7 @@ Catalog of all API routes, services, and maintenance scripts.
 ## Services
 
 - `services/email.service.js` – Nodemailer transport (JSON transport fallback for dev), OTP + appeal notifications.
-- `services/server.service.js` – Loads/saves `servers.json` with helper methods (`getAllServers`, `updateServer`, etc.).
+- `services/server.service.js` – Prisma-backed CRUD helpers for the `ServerConfig` table (`getAllServers`, `updateServer`, etc.).
 
 ## Middleware
 
@@ -85,7 +85,7 @@ npx prisma studio
 ## Configuration files
 
 - `.env` – `DATABASE_URL`, `PORT`, SMTP credentials, `JWT_SECRET`, `FRONTEND_URL`.
-- `servers.json` – Source of truth for server metadata.
+- `ServerConfig` (Prisma model) – Source of truth for server metadata.
 
 ## Testing endpoints
 

@@ -90,3 +90,18 @@ model Appeal {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
+
+model ServerConfig {
+  id                 String   @id
+  name               String
+  description        String
+  ip                 String
+  accessLevel        String   @default("public")
+  requiredEmailDomain String?
+  appealPolicy       String   @default("never")
+  contact            String?
+  rules              Json
+  order              Int       @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
