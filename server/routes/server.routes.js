@@ -72,6 +72,10 @@ router.post('/:serverId/accept-rules', async (req, res) => {
     }
 
     // Check access level requirements
+    if (server.accessLevel === 'appeal_only') {
+      return res.status(403).json({ error: 'This server requires an approved appeal' });
+    }
+
     if (server.accessLevel === 'student' && !user.isStudent) {
       return res.status(403).json({ error: 'This server requires a student email' });
     }
@@ -165,7 +169,7 @@ router.post('/', authenticateAdmin, async (req, res) => {
       name,
       description,
       ip,
-      accessLevel: accessLevel || 'public',
+      accessLevel: accessLevel || 'open',
       requiredEmailDomain,
       contact,
       rules: Array.isArray(rules) ? rules : [],

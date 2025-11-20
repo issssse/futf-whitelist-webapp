@@ -1,11 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
@@ -15,47 +9,47 @@ datasource db {
 }
 
 model User {
-  id                String              @id @default(uuid())
-  email             String              @unique
-  minecraftName     String              @unique
+  id                String          @id @default(uuid())
+  email             String          @unique
+  minecraftName     String          @unique
   realName          String?
-  isStudent         Boolean             @default(false)
-  verified          Boolean             @default(false)
+  isStudent         Boolean         @default(false)
+  verified          Boolean         @default(false)
   verificationToken String?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  serverAccess      ServerAccess[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
   accessRequests    AccessRequest[]
+  serverAccess      ServerAccess[]
 }
 
 model ServerAccess {
   id            String   @id @default(uuid())
   userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   serverId      String
   rulesAccepted Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, serverId])
 }
 
 model AccessRequest {
-  id                String   @id @default(uuid())
+  id                String    @id @default(uuid())
   userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  requestedLevel    String   // "student" or other access levels
+  requestedLevel    String
   email             String
   realName          String
   note              String?
-  verified          Boolean  @default(false)
-  approved          Boolean  @default(false)
-  rejected          Boolean  @default(false)
+  verified          Boolean   @default(false)
+  approved          Boolean   @default(false)
+  rejected          Boolean   @default(false)
   verificationToken String?
   reviewedBy        String?
   reviewedAt        DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Admin {
@@ -77,31 +71,31 @@ model EmailVerification {
 }
 
 model Appeal {
-  id             String   @id @default(uuid())
-  serverId       String
-  userEmail      String
-  minecraftName  String
-  realName       String?
-  studentEmail   String?
-  reason         String?
-  status         String   @default("pending") // pending, approved, rejected
-  reviewedBy     String?
-  reviewedAt     DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id            String    @id @default(uuid())
+  serverId      String
+  userEmail     String
+  minecraftName String
+  realName      String?
+  studentEmail  String?
+  reason        String?
+  status        String    @default("pending")
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 model ServerConfig {
-  id                 String   @id
-  name               String
-  description        String
-  ip                 String
-  accessLevel        String   @default("public")
+  id                  String   @id
+  name                String
+  description         String
+  ip                  String
+  accessLevel         String   @default("open")
   requiredEmailDomain String?
-  appealPolicy       String   @default("never")
-  contact            String?
-  rules              Json
-  order              Int       @default(0)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  appealPolicy        String   @default("never")
+  contact             String?
+  rules               Json
+  order               Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }

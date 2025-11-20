@@ -85,7 +85,7 @@ npx prisma studio
 ## Configuration files
 
 - `.env` – `DATABASE_URL`, `PORT`, SMTP credentials, `JWT_SECRET`, `FRONTEND_URL`.
-- `ServerConfig` (Prisma model) – Source of truth for server metadata.
+- `ServerConfig` (Prisma model) – Source of truth for server metadata (access modes, appeal policies, rules).
 
 ## Testing endpoints
 

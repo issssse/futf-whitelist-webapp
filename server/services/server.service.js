@@ -2,6 +2,18 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
+const APPEAL_POLICIES = ['never', 'non_student', 'always'];
+
+const normalizeAppealPolicy = (value) => {
+  if (value && APPEAL_POLICIES.includes(value)) {
+    return value;
+  }
+  if (value === 'students') {
+    return 'non_student';
+  }
+  return 'never';
+};
+
 const toServerPayload = (server) => {
   if (!server) {
     return null;
@@ -42,15 +54,24 @@ async function getAllServers() {
 
 async function createServer(data) {
   const count = await prisma.serverConfig.count();
+  const accessLevel = data.accessLevel || 'open';
+  const normalizedPolicy = normalizeAppealPolicy(data.appealPolicy);
+  const appealPolicy =
+    accessLevel === 'appeal_only'
+      ? 'always'
+      : accessLevel === 'open'
+        ? 'never'
+        : normalizedPolicy;
+
   const created = await prisma.serverConfig.create({
     data: {
       id: data.id,
       name: data.name,
       description: data.description,
       ip: data.ip,
-      accessLevel: data.accessLevel || 'public',
+      accessLevel,
       requiredEmailDomain: data.requiredEmailDomain || null,
-      appealPolicy: data.appealPolicy || 'never',
+      appealPolicy,
       contact: data.contact || null,
       rules: normalizeRules(data.rules),
       order: typeof data.order === 'number' ? data.order : count,
@@ -60,16 +81,34 @@ async function createServer(data) {
 }
 
 async function updateServer(serverId, data) {
+  const existing = await prisma.serverConfig.findUnique({
+    where: { id: serverId },
+  });
+  if (!existing) {
+    return null;
+  }
+
+  const nextAccessLevel = data.accessLevel || existing.accessLevel || 'open';
+  let nextAppealPolicy = existing.appealPolicy || 'never';
+
+  if (nextAccessLevel === 'appeal_only') {
+    nextAppealPolicy = 'always';
+  } else if (nextAccessLevel === 'open') {
+    nextAppealPolicy = 'never';
+  } else if (data.appealPolicy !== undefined) {
+    nextAppealPolicy = normalizeAppealPolicy(data.appealPolicy);
+  }
+
   const updated = await prisma.serverConfig.update({
     where: { id: serverId },
     data: {
       name: data.name,
       description: data.description,
       ip: data.ip,
-      accessLevel: data.accessLevel || 'public',
+      accessLevel: nextAccessLevel,
       requiredEmailDomain: data.requiredEmailDomain || null,
       contact: data.contact || null,
-      appealPolicy: data.appealPolicy || 'never',
+      appealPolicy: nextAppealPolicy,
       rules:
         data.rules !== undefined ? normalizeRules(data.rules) : undefined,
     },

@@ -51,20 +51,35 @@ router.post('/', async (req, res) => {
     }
 
     const requiredDomain = server.requiredEmailDomain;
-    const isStudentEmail =
-      requiredDomain && normalizedEmail.endsWith(requiredDomain.toLowerCase());
+    const requiresStudentEmail = server.accessLevel === 'student';
 
-    const policy = server.appealPolicy || server.appeal_policy || 'never';
-    const studentRequired = server.accessLevel === 'student';
+    const hasStudentEmail =
+      requiresStudentEmail && requiredDomain
+        ? normalizedEmail.endsWith(requiredDomain.toLowerCase())
+        : requiresStudentEmail
+          ? true
+          : false;
+
+    const emailQualifies = !requiresStudentEmail || hasStudentEmail;
+
+    const policy =
+      server.accessLevel === 'appeal_only'
+        ? 'always'
+        : server.appealPolicy || server.appeal_policy || 'never';
     const appealsEnabled =
-      (policy === 'always' && !isStudentEmail) ||
-      (policy === 'students' && Boolean(isStudentEmail));
+      policy === 'always' ||
+      (policy === 'non_student' && requiresStudentEmail && !hasStudentEmail);
 
-    if (studentRequired && !isStudentEmail && !appealsEnabled) {
-      return res.status(403).json({ error: 'This server requires a student email. Appeals are disabled.' });
+    if (!emailQualifies && !appealsEnabled) {
+      return res
+        .status(403)
+        .json({
+          error:
+            'This server requires a student email. Appeals are disabled for non-student addresses.',
+        });
     }
 
-    const autoApproved = !studentRequired || isStudentEmail;
+    const autoApproved = policy !== 'always' && emailQualifies;
 
     const appeal = await prisma.appeal.create({
       data: {
@@ -72,7 +87,7 @@ router.post('/', async (req, res) => {
         userEmail: trimmedEmail,
         minecraftName,
         realName,
-        studentEmail: isStudentEmail ? trimmedEmail : null,
+        studentEmail: hasStudentEmail ? trimmedEmail : null,
         reason: note,
         status: autoApproved ? 'approved' : 'pending',
       },

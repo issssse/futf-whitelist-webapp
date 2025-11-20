@@ -19,13 +19,12 @@ interface ServerType {
   name: string;
   description: string;
   ip: string;
-  accessLevel: 'open' | 'public' | 'student' | 'verified';
+  accessLevel: 'open' | 'student' | 'appeal_only';
   requiredEmailDomain?: string | null;
-  appealPolicy?: 'always' | 'students' | 'never';
+  appealPolicy?: 'always' | 'non_student' | 'never';
   contact?: string | null;
   rules: string[];
-  student_required?: boolean;
-  appeal_policy?: 'always' | 'students' | 'never';
+  appeal_policy?: 'always' | 'non_student' | 'never';
   required_email_domain?: string | null;
   order?: number;
 }
@@ -37,6 +36,17 @@ interface ServerStatusState {
     online: number | null;
     max: number | null;
   } | null;
+}
+
+interface AccessState {
+  mode: 'open' | 'student' | 'appeal_only';
+  policy: 'never' | 'non_student' | 'always';
+  requiresStudentEmail: boolean;
+  hasRequiredEmail: boolean;
+  appealMandatory: boolean;
+  appealsEnabled: boolean;
+  appealsDisabled: boolean;
+  canAutoJoin: boolean;
 }
 
 interface StepCardProps {
@@ -94,27 +104,77 @@ const isStudentEmailForServer = (address: string, target?: ServerType) => {
 
 const serverRequiresStudentEmail = (target?: ServerType) => {
   if (!target) return false;
-  if (typeof target.student_required === 'boolean') return target.student_required;
+  if (target.accessLevel === 'appeal_only') return false;
+  if (target.accessLevel === 'open') return false;
   return target.accessLevel === 'student';
 };
 
-const canAccessServer = (address: string, target?: ServerType) => {
-  if (DEV_MODE) return true;
-  if (!target) return false;
-  if (!serverRequiresStudentEmail(target)) return true;
-  return isStudentEmailForServer(address, target);
+const getAppealPolicy = (target?: ServerType) => {
+  if (!target) return 'never';
+  if (target.accessLevel === 'appeal_only') {
+    return 'always';
+  }
+  if (target.accessLevel === 'open') {
+    return 'never';
+  }
+  const policy = target.appeal_policy || target.appealPolicy || 'never';
+  if (policy === 'students') {
+    return 'non_student';
+  }
+  return policy as 'never' | 'non_student' | 'always';
 };
 
-const shouldShowAppeal = (address: string, target?: ServerType) => {
-  if (DEV_MODE) return false;
-  if (!target) return false;
-  if (!EMAIL_REGEX.test(address.trim())) return false;
-  const policy = target.appeal_policy || target.appealPolicy || 'never';
-  const studentEmail = isStudentEmailForServer(address, target);
-  if (policy === 'never') return false;
-  if (policy === 'always') return !studentEmail;
-  if (policy === 'students') return studentEmail;
-  return false;
+const buildAccessState = (target: ServerType | undefined, email: string): AccessState => {
+  const mode = target?.accessLevel || 'open';
+  if (mode === 'open') {
+    return {
+      mode,
+      policy: 'never',
+      requiresStudentEmail: false,
+      hasRequiredEmail: true,
+      appealMandatory: false,
+      appealsEnabled: false,
+      appealsDisabled: false,
+      canAutoJoin: true,
+    };
+  }
+
+  if (mode === 'appeal_only') {
+    return {
+      mode,
+      policy: 'always',
+      requiresStudentEmail: false,
+      hasRequiredEmail: false,
+      appealMandatory: true,
+      appealsEnabled: true,
+      appealsDisabled: false,
+      canAutoJoin: false,
+    };
+  }
+
+  const policy = getAppealPolicy(target);
+  const requiresStudentEmail = serverRequiresStudentEmail(target);
+  const hasRequiredEmail = requiresStudentEmail
+    ? isStudentEmailForServer(email, target)
+    : true;
+  const appealsForMissingEmail =
+    policy === 'non_student' && requiresStudentEmail && !hasRequiredEmail;
+  const appealMandatory = policy === 'always' || appealsForMissingEmail;
+  const appealsEnabled = policy === 'always' || appealsForMissingEmail;
+  const appealsDisabled =
+    requiresStudentEmail && !hasRequiredEmail && policy === 'never';
+  const canAutoJoin = hasRequiredEmail && policy !== 'always';
+
+  return {
+    mode,
+    policy,
+    requiresStudentEmail,
+    hasRequiredEmail,
+    appealMandatory,
+    appealsEnabled,
+    appealsDisabled,
+    canAutoJoin,
+  };
 };
 
 const Home = () => {
@@ -143,11 +203,7 @@ const Home = () => {
     (server: any, index?: number): ServerType => ({
       ...server,
       required_email_domain: server.requiredEmailDomain || server.required_email_domain || null,
-      appeal_policy: server.appealPolicy || server.appeal_policy || 'never',
-      student_required:
-        server.student_required !== undefined
-          ? server.student_required
-          : server.accessLevel === 'student',
+      appeal_policy: getAppealPolicy(server),
       order: typeof server.order === 'number' ? server.order : index ?? 0,
     }),
     []
@@ -269,18 +325,21 @@ const Home = () => {
   const trimmedEmail = email.trim();
   const trimmedMinecraftName = minecraftName.trim();
   const trimmedRealName = realName.trim();
+  const selectedAccess = buildAccessState(server, trimmedEmail);
   const emailValid = EMAIL_REGEX.test(trimmedEmail);
   const identityFieldsComplete = Boolean(trimmedMinecraftName && trimmedRealName);
   const showIdentitySection = emailValid;
-  const showVerificationSection = showIdentitySection && identityFieldsComplete;
-  const showFinalSection = emailVerified;
-  const selectedServerAppeal = server ? shouldShowAppeal(trimmedEmail, server) : false;
+  const showVerificationSection =
+    selectedAccess.mode !== 'open' &&
+    showIdentitySection &&
+    identityFieldsComplete;
+  const showFinalSection = selectedAccess.mode === 'open' ? true : emailVerified;
 
   useEffect(() => {
-    if (!selectedServerAppeal) {
+    if (!selectedAccess.appealsEnabled) {
       setNote('');
     }
-  }, [selectedServerAppeal]);
+  }, [selectedAccess.appealsEnabled]);
 
   useEffect(() => {
     setLinkSent(false);
@@ -327,6 +386,14 @@ const Home = () => {
       return;
     }
 
+    if (server.accessLevel === 'open') {
+      toast({
+        title: 'No verification needed',
+        description: 'This server is open for everyone—use the IP above to join directly.',
+      });
+      return;
+    }
+
     setLinkSending(true);
     try {
       await api.registerUser({
@@ -355,6 +422,14 @@ const Home = () => {
   const handleSubmit = async () => {
     if (!server) return;
 
+    if (server.accessLevel === 'open') {
+      toast({
+        title: 'No whitelist required',
+        description: `Join ${server.name} immediately using ${server.ip}.`,
+      });
+      return;
+    }
+
     if (!email || !minecraftName || !realName || !rulesAccepted) {
       toast({
         variant: 'destructive',
@@ -373,11 +448,11 @@ const Home = () => {
       return;
     }
 
-    if (!canAccessServer(trimmedEmail, server) && !shouldShowAppeal(trimmedEmail, server)) {
+    if (!selectedAccess.hasRequiredEmail && !selectedAccess.appealsEnabled) {
       toast({
         variant: 'destructive',
         title: 'Student email required',
-        description: server.required_email_domain
+        description: server?.required_email_domain
           ? `This server requires an email ending with ${server.required_email_domain}`
           : 'This server requires a student email',
       });
@@ -394,7 +469,7 @@ const Home = () => {
         note,
       });
 
-      const directlyGranted = canAccessServer(trimmedEmail, server);
+      const directlyGranted = selectedAccess.canAutoJoin;
       toast({
         title: directlyGranted ? 'Whitelist Applied!' : 'Request Submitted!',
         description: directlyGranted
@@ -499,15 +574,11 @@ const Home = () => {
               </div>
 
               {servers.map((srv, index) => {
-                const hasAccess = canAccessServer(trimmedEmail, srv);
-                const needsRequest = shouldShowAppeal(trimmedEmail, srv);
-                const showAppealSection = needsRequest;
+                const state = buildAccessState(srv, trimmedEmail);
+                const needsRequest = !state.canAutoJoin;
+                const showAppealSection = state.appealsEnabled;
                 const requiredDomain = srv.required_email_domain || srv.requiredEmailDomain || '';
-                const appealUnavailableMessage =
-                  serverRequiresStudentEmail(srv) &&
-                  EMAIL_REGEX.test(trimmedEmail) &&
-                  !isStudentEmailForServer(trimmedEmail, srv) &&
-                  !showAppealSection;
+                const appealUnavailableMessage = state.appealsDisabled;
                 const accentColors = [
                   'border-l-emerald-500/50 bg-emerald-500/5',
                   'border-l-blue-500/50 bg-blue-500/5',
@@ -516,6 +587,75 @@ const Home = () => {
                 ];
                 const cardAccent = accentColors[index % accentColors.length];
                 const isCopied = copiedServer === srv.id;
+
+                if (state.mode === 'open') {
+                  return (
+                    <TabsContent key={srv.id} value={srv.id} className="space-y-6 mt-6">
+                      <Card className={`border-l-4 ${cardAccent}`}>
+                        <CardHeader>
+                          <CardTitle className="flex items-center justify-between gap-4 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <Server className="w-5 h-5" />
+                              {srv.name}
+                            </div>
+                            <div className="text-sm text-muted-foreground font-medium">
+                              Players:{' '}
+                              {serverStatus[srv.id]?.pending && serverStatus[srv.id]?.online === null
+                                ? '...'
+                                : serverStatus[srv.id]?.players?.online !== undefined &&
+                                  serverStatus[srv.id]?.players?.online !== null &&
+                                  serverStatus[srv.id]?.players?.max !== undefined &&
+                                  serverStatus[srv.id]?.players?.max !== null
+                                  ? `${serverStatus[srv.id]?.players?.online}/${serverStatus[srv.id]?.players?.max}`
+                                  : serverStatus[srv.id]?.online
+                                    ? serverStatus[srv.id]?.players?.online ?? 'Unknown'
+                                    : 'Offline'}
+                            </div>
+                          </CardTitle>
+                          <CardDescription>{srv.description}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                          <div className="bg-muted/50 p-4 rounded-lg flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-muted-foreground">Server IP</p>
+                              <p className="font-mono font-bold text-lg">{srv.ip}</p>
+                            </div>
+                            <Button
+                              variant={isCopied ? 'default' : 'ghost'}
+                              size="icon"
+                              className={isCopied ? 'bg-green-600 hover:bg-green-700' : ''}
+                              onClick={() => {
+                                navigator.clipboard.writeText(srv.ip);
+                                setCopiedServer(srv.id);
+                                setTimeout(() => setCopiedServer(null), 2000);
+                              }}
+                            >
+                              {isCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                            </Button>
+                          </div>
+
+                          {srv.rules && srv.rules.length > 0 && (
+                            <div className="rounded-2xl border border-border/60 bg-background/40 p-4 space-y-2">
+                              <p className="text-sm font-semibold">Server rules</p>
+                              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                                {srv.rules.map((rule, idx) => (
+                                  <li key={`${srv.id}-rule-${idx}`}>{rule}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          <div className="rounded-2xl border border-primary/40 bg-primary/5 p-4 space-y-2">
+                            <h3 className="font-semibold">Open to everyone</h3>
+                            <p className="text-sm text-muted-foreground">
+                              No whitelist required. Add the server using the IP above and start playing immediately.
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                  );
+                }
 
                 return (
                   <TabsContent key={srv.id} value={srv.id} className="space-y-6 mt-6">
@@ -589,7 +729,7 @@ const Home = () => {
                               As soon as the email looks valid, the identity section will slide into view.
                             </p>
                           </div>
-                          {serverRequiresStudentEmail(srv) && trimmedEmail && !isStudentEmailForServer(trimmedEmail, srv) && (
+                          {state.requiresStudentEmail && trimmedEmail && !state.hasRequiredEmail && (
                             <p className="text-sm text-destructive">
                               {requiredDomain
                                 ? `Student email required (${requiredDomain})`
@@ -685,6 +825,11 @@ const Home = () => {
                           {showAppealSection && (
                             <div className="space-y-2">
                               <Label>Appeal for whitelist</Label>
+                              <p className="text-sm text-muted-foreground">
+                                {state.policy === 'always'
+                                  ? 'This server manually reviews every request. Explain why you should be admitted.'
+                                  : 'You do not meet the student email requirement. Share your motivation so admins can review your case.'}
+                              </p>
                               <Textarea
                                 value={note}
                                 onChange={(e) => setNote(e.target.value)}
@@ -698,6 +843,12 @@ const Home = () => {
                             <p className="text-sm text-destructive">
                               Appeals are disabled for this email. Please use your student address
                               {requiredDomain ? ` (${requiredDomain})` : ''} to join this server.
+                            </p>
+                          )}
+
+                          {!showAppealSection && !appealUnavailableMessage && state.policy === 'non_student' && state.hasRequiredEmail && (
+                            <p className="text-sm text-muted-foreground">
+                              Student email verified. This request will be approved instantly.
                             </p>
                           )}
 
@@ -722,7 +873,7 @@ const Home = () => {
                             ? 'Submitting...'
                             : needsRequest
                               ? 'Submit Appeal'
-                              : canAccessServer(trimmedEmail, srv)
+                              : state.canAutoJoin
                                 ? 'Join Server'
                                 : 'Submit Request'}
                         </Button>

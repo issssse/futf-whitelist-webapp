@@ -7,7 +7,7 @@ export interface Server {
   requiredEmailDomain?: string;
   contact?: string;
   rules: string[];
-  appealPolicy?: 'always' | 'students' | 'never';
+  appealPolicy?: 'always' | 'non_student' | 'never';
   order?: number;
 }
 

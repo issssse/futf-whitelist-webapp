@@ -39,7 +39,11 @@ The Servers tab provides a sortable list of all configured realms (Prisma `Serve
 - **Verify metadata** – Confirm IP/port, access level (`student` vs `public`), rule list, and contact email.
 - **Edit server info** – Use the edit drawer to update descriptions or rule text. All changes are persisted via Prisma and are immediately reflected in player views.
 - **Check connection status** – Each server card surfaces the last successful ping. If status returns `pending`, run `minecraft-server-util` checks from the backend server.
-- **Appeal policy** – Keep `appealPolicy` accurate (`students`, `never`) so the frontend routes appeals correctly.
+- **Access mode & appeals** – One dropdown controls everything:
+  - **Open for everyone** – no whitelist form.
+  - **Student email with optional appeals** – allow non-students to submit appeals when needed.
+  - **Student email, no appeals** – only the required domain is allowed.
+  - **Appeal-only** – every request must be manually approved (magic link still verifies the email).
 
 ## 5. Adding or resetting admin accounts
 

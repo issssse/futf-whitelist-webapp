@@ -94,10 +94,17 @@ Occasionally you may need to suspend a user:
 1. **Add or edit a server** – Use the dashboard drawer to update name, description, IP, rules, and access level. All changes are stored in the `ServerConfig` table via Prisma and take effect immediately.
 2. **Check online status** – The status badge pings the Minecraft host via `minecraft-server-util`. If it stays `pending`, verify the host/port combination or consult the infrastructure team.
 3. **Coordinate with server owners** – Update the `contact` field so players know who to email for gameplay issues.
-4. **Appeal policies** – Set `appealPolicy` to `students`, `never`, or `custom`. This toggles whether the frontend even shows the “Appeal” button for that server.
-5. **Order of appearance** – Use the ↑/↓ arrows in the admin dashboard to reorder servers. The sequence is stored in `server/data/servers.runtime.json`, so whatever you choose is exactly how players see the tab list.
+4. **Access mode** – Choose one of four presets:
+   - `open` – no whitelist flow; anyone can join right away.
+   - `student` – requires `@student.uu.se`; you can optionally allow appeals for non-students.
+   - `appeal_only` – every request must be reviewed manually.
+5. **Appeal policy** – When the mode isn’t `open`, pick how appeals behave:
+   - `never` – student email required, no appeals.
+   - `non_student` – players missing the student domain can appeal.
+   - `always` – every request becomes an appeal (manual approval only).
+6. **Order of appearance** – Use the ↑/↓ arrows in the admin dashboard to reorder servers. The sequence is stored in the `ServerConfig` table, so whatever you choose is exactly how players see the tab list.
 
-> Need to know how the JSON file is parsed or how pm2 reloads it? See [Developer Guide → Chapter 3 – Backend Services](/guide/chapter-3-backend.html).
+> Need query examples or schema details? See [Developer Guide → Chapter 3 – Backend Services](/guide/chapter-3-backend.html).
 
 ## 6. Admin-specific quick links
 

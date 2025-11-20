@@ -12,13 +12,15 @@ import { useToast } from '@/hooks/use-toast';
 import * as api from '@/lib/api';
 import type { Server } from '@/lib/types';
 
+type AccessModeOption = 'open' | 'student_with_appeal' | 'student_strict' | 'appeal_only';
+
 interface EditableServer {
   id: string;
   name: string;
   description: string;
   ip: string;
-  student_required: boolean;
-  appeal_policy: 'always' | 'students' | 'never';
+  accessLevel: 'open' | 'student' | 'appeal_only';
+  appeal_policy: 'always' | 'non_student' | 'never';
   required_email_domain: string | null;
   contact: string | null;
   rules: string[];
@@ -33,6 +35,30 @@ const ServerEdit = () => {
   const isNew = id === 'new';
   const token = localStorage.getItem('adminToken');
 
+  const resolveAccessMode = (srv: EditableServer): AccessModeOption => {
+    if (srv.accessLevel === 'open') return 'open';
+    if (srv.accessLevel === 'appeal_only') return 'appeal_only';
+    return srv.appeal_policy === 'non_student' ? 'student_with_appeal' : 'student_strict';
+  };
+
+  const applyAccessMode = (value: AccessModeOption) => {
+    if (!server) return;
+    switch (value) {
+      case 'open':
+        setServer({ ...server, accessLevel: 'open', appeal_policy: 'never' });
+        break;
+      case 'student_with_appeal':
+        setServer({ ...server, accessLevel: 'student', appeal_policy: 'non_student' });
+        break;
+      case 'student_strict':
+        setServer({ ...server, accessLevel: 'student', appeal_policy: 'never' });
+        break;
+      case 'appeal_only':
+        setServer({ ...server, accessLevel: 'appeal_only', appeal_policy: 'always' });
+        break;
+    }
+  };
+
   useEffect(() => {
     if (!token) {
       navigate('/auth');
@@ -44,7 +70,7 @@ const ServerEdit = () => {
         name: '',
         description: '',
         ip: '',
-        student_required: false,
+        accessLevel: 'open',
         appeal_policy: 'never',
         required_email_domain: '@student.uu.se',
         contact: null,
@@ -61,7 +87,7 @@ const ServerEdit = () => {
     name: serverData.name,
     description: serverData.description,
     ip: serverData.ip,
-    student_required: serverData.accessLevel === 'student',
+    accessLevel: (serverData.accessLevel as 'open' | 'student' | 'appeal_only') || 'open',
     appeal_policy: (serverData as any).appealPolicy || 'never',
     required_email_domain: serverData.requiredEmailDomain || null,
     contact: serverData.contact || null,
@@ -101,7 +127,7 @@ const ServerEdit = () => {
       name: server.name,
       description: server.description,
       ip: server.ip,
-      accessLevel: server.student_required ? 'student' : 'open',
+      accessLevel: server.accessLevel,
       requiredEmailDomain: server.required_email_domain,
       contact: server.contact,
       rules: server.rules,
@@ -237,39 +263,24 @@ const ServerEdit = () => {
             />
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label htmlFor="student">Student Email Required</Label>
-              <p className="text-sm text-muted-foreground">Require student email to access</p>
-            </div>
-            <Switch
-              id="student"
-              checked={server.student_required}
-              onCheckedChange={(checked) => setServer({ ...server, student_required: checked })}
-            />
-          </div>
-
           <div className="space-y-2">
-            <Label htmlFor="appeal">Appeal Policy</Label>
+            <Label htmlFor="access-mode">Access Mode</Label>
             <Select
-              value={server.appeal_policy}
-              onValueChange={(value: 'always' | 'students' | 'never') =>
-                setServer({ ...server, appeal_policy: value })
-              }
+              value={resolveAccessMode(server)}
+              onValueChange={(value: AccessModeOption) => applyAccessMode(value)}
             >
-              <SelectTrigger id="appeal">
+              <SelectTrigger id="access-mode">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="always">Always Allow Appeals</SelectItem>
-                <SelectItem value="students">Students Only Can Appeal</SelectItem>
-                <SelectItem value="never">Never Allow Appeals</SelectItem>
+                <SelectItem value="open">Open for everyone</SelectItem>
+                <SelectItem value="student_with_appeal">Student email required, allow appeals for others</SelectItem>
+                <SelectItem value="student_strict">Student email required, no appeals</SelectItem>
+                <SelectItem value="appeal_only">Appeal only (manual review)</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-sm text-muted-foreground">
-              {server.appeal_policy === 'always' && 'Anyone can submit an appeal to join'}
-              {server.appeal_policy === 'students' && 'Only users with student emails can appeal'}
-              {server.appeal_policy === 'never' && 'No appeals allowed, direct access only'}
+              This single control configures both the whitelist requirement and how appeals behave.
             </p>
           </div>
 
