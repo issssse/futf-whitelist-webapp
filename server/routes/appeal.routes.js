@@ -1,8 +1,13 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const { authenticateAdmin } = require('../middleware/auth.middleware');
-const { getServerConfig } = require('../services/server.service');
+const {
+  getServerConfig,
+  requiresMembership,
+  membershipAppealsEnabled,
+} = require('../services/server.service');
 const { sendAppealNotification } = require('../services/email.service');
+const { isOrbiMember } = require('../services/orbi.service');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -50,8 +55,9 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Email not verified' });
     }
 
-    const requiredDomain = server.requiredEmailDomain;
+    const requiredDomain = server.requiredEmailDomain || server.required_email_domain;
     const requiresStudentEmail = server.accessLevel === 'student';
+    const requiresOrbiMembership = requiresMembership(server);
 
     const hasStudentEmail =
       requiresStudentEmail && requiredDomain
@@ -60,7 +66,25 @@ router.post('/', async (req, res) => {
           ? true
           : false;
 
-    const emailQualifies = !requiresStudentEmail || hasStudentEmail;
+    let hasOrbiMembership = true;
+    if (requiresOrbiMembership) {
+      try {
+        const orbiResult = isOrbiMember(normalizedEmail);
+        hasOrbiMembership = orbiResult.member;
+      } catch (err) {
+        console.error('Membership validation failed', err);
+        return res.status(err.code === 'ENOENT' ? 503 : 500).json({
+          error:
+            err.code === 'ENOENT'
+              ? 'Membership list missing on server'
+              : 'Unable to verify membership right now',
+        });
+      }
+    }
+
+    const emailQualifies =
+      (!requiresStudentEmail || hasStudentEmail) &&
+      (!requiresOrbiMembership || hasOrbiMembership);
 
     const policy =
       server.accessLevel === 'appeal_only'
@@ -68,15 +92,15 @@ router.post('/', async (req, res) => {
         : server.appealPolicy || server.appeal_policy || 'never';
     const appealsEnabled =
       policy === 'always' ||
+      (requiresOrbiMembership && !hasOrbiMembership && membershipAppealsEnabled(server)) ||
       (policy === 'non_student' && requiresStudentEmail && !hasStudentEmail);
 
     if (!emailQualifies && !appealsEnabled) {
-      return res
-        .status(403)
-        .json({
-          error:
-            'This server requires a student email. Appeals are disabled for non-student addresses.',
-        });
+      return res.status(403).json({
+        error: requiresOrbiMembership
+          ? 'This server requires an active FUTF membership email. Appeals are disabled for non-members.'
+          : 'This server requires a student email. Appeals are disabled for non-student addresses.',
+      });
     }
 
     const autoApproved = policy !== 'always' && emailQualifies;
@@ -87,7 +111,7 @@ router.post('/', async (req, res) => {
         userEmail: trimmedEmail,
         minecraftName,
         realName,
-        studentEmail: hasStudentEmail ? trimmedEmail : null,
+        studentEmail: hasStudentEmail || hasOrbiMembership ? trimmedEmail : null,
         reason: note,
         status: autoApproved ? 'approved' : 'pending',
       },

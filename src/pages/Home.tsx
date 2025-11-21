@@ -19,12 +19,12 @@ interface ServerType {
   name: string;
   description: string;
   ip: string;
-  accessLevel: 'open' | 'student' | 'appeal_only';
+  accessLevel: 'open' | 'student' | 'appeal_only' | 'member';
   requiredEmailDomain?: string | null;
-  appealPolicy?: 'always' | 'non_student' | 'never';
+  appealPolicy?: 'always' | 'non_student' | 'non_member' | 'never';
   contact?: string | null;
   rules: string[];
-  appeal_policy?: 'always' | 'non_student' | 'never';
+  appeal_policy?: 'always' | 'non_student' | 'non_member' | 'never';
   required_email_domain?: string | null;
   order?: number;
 }
@@ -39,8 +39,10 @@ interface ServerStatusState {
 }
 
 interface AccessState {
-  mode: 'open' | 'student' | 'appeal_only';
+  mode: 'open' | 'student' | 'appeal_only' | 'member';
   policy: 'never' | 'non_student' | 'always';
+  requiresMembership: boolean;
+  hasMembership: boolean;
   requiresStudentEmail: boolean;
   hasRequiredEmail: boolean;
   appealMandatory: boolean;
@@ -109,6 +111,11 @@ const serverRequiresStudentEmail = (target?: ServerType) => {
   return target.accessLevel === 'student';
 };
 
+const serverRequiresMembership = (target?: ServerType) => {
+  if (!target) return false;
+  return target.accessLevel === 'member';
+};
+
 const getAppealPolicy = (target?: ServerType) => {
   if (!target) return 'never';
   if (target.accessLevel === 'appeal_only') {
@@ -118,18 +125,24 @@ const getAppealPolicy = (target?: ServerType) => {
     return 'never';
   }
   const policy = target.appeal_policy || target.appealPolicy || 'never';
-  if (policy === 'students') {
+  if (policy === 'students' || policy === 'non_member') {
     return 'non_student';
   }
   return policy as 'never' | 'non_student' | 'always';
 };
 
-const buildAccessState = (target: ServerType | undefined, email: string): AccessState => {
+const buildAccessState = (
+  target: ServerType | undefined,
+  email: string,
+  hasMembership: boolean
+): AccessState => {
   const mode = target?.accessLevel || 'open';
   if (mode === 'open') {
     return {
       mode,
       policy: 'never',
+      requiresMembership: false,
+      hasMembership: true,
       requiresStudentEmail: false,
       hasRequiredEmail: true,
       appealMandatory: false,
@@ -143,6 +156,8 @@ const buildAccessState = (target: ServerType | undefined, email: string): Access
     return {
       mode,
       policy: 'always',
+      requiresMembership: false,
+      hasMembership: false,
       requiresStudentEmail: false,
       hasRequiredEmail: false,
       appealMandatory: true,
@@ -153,21 +168,29 @@ const buildAccessState = (target: ServerType | undefined, email: string): Access
   }
 
   const policy = getAppealPolicy(target);
+  const requiresMembership = serverRequiresMembership(target);
   const requiresStudentEmail = serverRequiresStudentEmail(target);
+  const hasMembershipMatch = requiresMembership ? hasMembership : true;
   const hasRequiredEmail = requiresStudentEmail
     ? isStudentEmailForServer(email, target)
     : true;
   const appealsForMissingEmail =
-    policy === 'non_student' && requiresStudentEmail && !hasRequiredEmail;
+    policy === 'non_student' &&
+    ((requiresStudentEmail && !hasRequiredEmail) ||
+      (requiresMembership && !hasMembershipMatch));
   const appealMandatory = policy === 'always' || appealsForMissingEmail;
   const appealsEnabled = policy === 'always' || appealsForMissingEmail;
   const appealsDisabled =
-    requiresStudentEmail && !hasRequiredEmail && policy === 'never';
-  const canAutoJoin = hasRequiredEmail && policy !== 'always';
+    (requiresStudentEmail && !hasRequiredEmail && policy === 'never') ||
+    (requiresMembership && !hasMembershipMatch && policy === 'never');
+  const canAutoJoin =
+    hasRequiredEmail && hasMembershipMatch && policy !== 'always';
 
   return {
     mode,
     policy,
+    requiresMembership,
+    hasMembership: hasMembershipMatch,
     requiresStudentEmail,
     hasRequiredEmail,
     appealMandatory,
@@ -198,6 +221,23 @@ const Home = () => {
   const [linkSending, setLinkSending] = useState(false);
   const [linkSent, setLinkSent] = useState(false);
   const [verifiedUserId, setVerifiedUserId] = useState<string | null>(null);
+  const [membershipStatus, setMembershipStatus] = useState<'idle' | 'checking' | 'match' | 'nomatch' | 'error'>('idle');
+  const [pingTick, setPingTick] = useState(0);
+
+  // Derived values
+  const server = servers.find((s) => s.id === selectedServer);
+  const trimmedEmail = email.trim();
+  const trimmedMinecraftName = minecraftName.trim();
+  const trimmedRealName = realName.trim();
+  const membershipMatch = membershipStatus === 'match';
+  const selectedAccess = buildAccessState(server, trimmedEmail, membershipMatch);
+  const emailValid = EMAIL_REGEX.test(trimmedEmail);
+  const identityFieldsComplete = Boolean(trimmedMinecraftName && trimmedRealName);
+  const showIdentitySection = emailValid;
+  const showVerificationSection =
+    selectedAccess.mode !== 'open' &&
+    showIdentitySection &&
+    identityFieldsComplete;
 
   const mapServer = useCallback(
     (server: any, index?: number): ServerType => ({
@@ -298,6 +338,19 @@ const Home = () => {
   }, [loadServers]);
 
   useEffect(() => {
+    const hasPending = Object.values(serverStatus).some(
+      (s) => s?.pending || s?.online === null
+    );
+    if (!hasPending) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setPingTick((value) => (value + 1) % 3);
+    }, 400);
+    return () => window.clearInterval(timer);
+  }, [serverStatus]);
+
+  useEffect(() => {
     if (selectedServer && tabRefs.current[selectedServer]) {
       tabRefs.current[selectedServer]?.scrollIntoView({
         behavior: 'smooth',
@@ -313,6 +366,36 @@ const Home = () => {
   }, [selectedServer]);
 
   useEffect(() => {
+    if (!server || !serverRequiresMembership(server)) {
+      setMembershipStatus('idle');
+      return;
+    }
+    if (!trimmedEmail || !EMAIL_REGEX.test(trimmedEmail)) {
+      setMembershipStatus('idle');
+      return;
+    }
+
+    let cancelled = false;
+    setMembershipStatus('checking');
+    api
+      .checkOrbiMembership(trimmedEmail)
+      .then((res) => {
+        if (cancelled) return;
+        setMembershipStatus(res.data?.member ? 'match' : 'nomatch');
+      })
+      .catch((error) => {
+        console.error('Failed to validate membership', error);
+        if (!cancelled) {
+          setMembershipStatus('error');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [server, trimmedEmail, selectedServer]);
+
+  useEffect(() => {
     return () => {
       isMountedRef.current = false;
       Object.values(statusPollers.current).forEach((timeoutId) => {
@@ -321,18 +404,6 @@ const Home = () => {
     };
   }, []);
 
-  const server = servers.find((s) => s.id === selectedServer);
-  const trimmedEmail = email.trim();
-  const trimmedMinecraftName = minecraftName.trim();
-  const trimmedRealName = realName.trim();
-  const selectedAccess = buildAccessState(server, trimmedEmail);
-  const emailValid = EMAIL_REGEX.test(trimmedEmail);
-  const identityFieldsComplete = Boolean(trimmedMinecraftName && trimmedRealName);
-  const showIdentitySection = emailValid;
-  const showVerificationSection =
-    selectedAccess.mode !== 'open' &&
-    showIdentitySection &&
-    identityFieldsComplete;
   const showFinalSection = selectedAccess.mode === 'open' ? true : emailVerified;
 
   useEffect(() => {
@@ -451,10 +522,30 @@ const Home = () => {
     if (!selectedAccess.hasRequiredEmail && !selectedAccess.appealsEnabled) {
       toast({
         variant: 'destructive',
-        title: 'Student email required',
-        description: server?.required_email_domain
-          ? `This server requires an email ending with ${server.required_email_domain}`
-          : 'This server requires a student email',
+        title: selectedAccess.requiresMembership ? 'FUTF membership required' : 'Student email required',
+        description: selectedAccess.requiresMembership
+          ? 'Use the email tied to your FUTF Orbi membership to join this server.'
+          : server?.required_email_domain
+            ? `This server requires an email ending with ${server.required_email_domain}`
+            : 'This server requires a student email',
+      });
+      return;
+    }
+
+    if (selectedAccess.requiresMembership && membershipStatus === 'checking') {
+      toast({
+        variant: 'destructive',
+        title: 'Still checking membership',
+        description: 'Please wait a moment while we confirm your FUTF membership.',
+      });
+      return;
+    }
+
+    if (selectedAccess.requiresMembership && membershipStatus === 'error') {
+      toast({
+        variant: 'destructive',
+        title: 'Membership check failed',
+        description: 'We could not validate your membership. Try again shortly.',
       });
       return;
     }
@@ -525,60 +616,77 @@ const Home = () => {
         ) : (
           <div className="mt-8 space-y-6 px-4 pb-8">
             <Tabs value={selectedServer} onValueChange={setSelectedServer} className="w-full">
-              <div className="relative" ref={tabListRef}>
-                <TabsList
-                  className="relative z-0 flex w-full min-h-[52px] gap-2 overflow-x-auto rounded-xl border border-border/60 bg-muted/40 p-1 scroll-smooth snap-x snap-mandatory
-                    [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']"
-                >
-                  {servers.map((srv) => {
-                    const statusInfo = serverStatus[srv.id];
-                    const statusPending = statusInfo?.pending || statusInfo?.online === null;
-                    const statusClasses = statusPending
-                      ? 'animate-pulse fill-muted-foreground text-muted-foreground'
-                      : statusInfo?.online
-                      ? 'fill-green-500 text-green-500'
-                      : 'fill-red-500 text-red-500';
-                  const statusLabel = statusPending
-                    ? 'Checking status'
-                    : statusInfo?.online
-                      ? 'Online'
-                      : 'Offline';
+              {servers.length > 1 && (
+                <div className="relative" ref={tabListRef}>
+                  <TabsList
+                    className="relative z-0 flex w-full min-h-[52px] gap-2 overflow-x-auto rounded-xl border border-border/60 bg-muted/40 p-1 scroll-smooth snap-x snap-mandatory
+                      [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']"
+                  >
+                    {servers.map((srv) => {
+                      const statusInfo = serverStatus[srv.id];
+                      const statusPending = statusInfo?.pending || statusInfo?.online === null;
+                      const statusClasses = statusPending
+                        ? 'animate-pulse fill-muted-foreground text-muted-foreground'
+                        : statusInfo?.online
+                          ? 'fill-green-500 text-green-500'
+                          : 'fill-red-500 text-red-500';
+                      const statusLabel = statusPending
+                        ? 'Checking status'
+                        : statusInfo?.online
+                          ? 'Online'
+                          : 'Offline';
 
-                    return (
-                      <TabsTrigger
-                        key={srv.id}
-                        value={srv.id}
-                        ref={(node) => {
-                          tabRefs.current[srv.id] = node;
-                        }}
-                        className={cn(
-                          'relative flex-shrink-0 min-w-[160px] snap-start rounded-lg px-4 py-2 text-sm transition-colors',
-                          selectedServer === srv.id
-                            ? 'bg-background text-foreground shadow-sm'
-                            : 'bg-transparent text-muted-foreground hover:bg-card/40'
-                        )}
-                      >
-                        <Circle
-                          className={`w-2 h-2 absolute left-3 transition-all ${statusClasses}`}
-                          aria-label={statusLabel}
-                          title={statusLabel}
-                        />
-                        <Server className="w-4 h-4 ml-5" />
-                        {srv.name}
-                      </TabsTrigger>
-                    );
-                  })}
-                </TabsList>
-                <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-10 rounded-l-xl bg-gradient-to-r from-background via-background/80 to-transparent md:hidden" />
-                <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10 rounded-r-xl bg-gradient-to-l from-background via-background/80 to-transparent md:hidden" />
-              </div>
+                      return (
+                        <TabsTrigger
+                          key={srv.id}
+                          value={srv.id}
+                          ref={(node) => {
+                            tabRefs.current[srv.id] = node;
+                          }}
+                          className={cn(
+                            'relative flex-shrink-0 min-w-[160px] snap-start rounded-lg px-4 py-2 text-sm transition-colors',
+                            selectedServer === srv.id
+                              ? 'bg-background text-foreground shadow-sm'
+                              : 'bg-transparent text-muted-foreground hover:bg-card/40'
+                          )}
+                        >
+                          <Circle
+                            className={`w-2 h-2 absolute left-3 transition-all ${statusClasses}`}
+                            aria-label={statusLabel}
+                            title={statusLabel}
+                          />
+                          <Server className="w-4 h-4 ml-5" />
+                          {srv.name}
+                        </TabsTrigger>
+                      );
+                    })}
+                  </TabsList>
+                  <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-10 rounded-l-xl bg-gradient-to-r from-background via-background/80 to-transparent md:hidden" />
+                  <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10 rounded-r-xl bg-gradient-to-l from-background via-background/80 to-transparent md:hidden" />
+                </div>
+              )}
 
-              {servers.map((srv, index) => {
-                const state = buildAccessState(srv, trimmedEmail);
+              {(servers.length === 1 ? servers : servers).map((srv, index) => {
+                const membershipCheckState = srv.id === server?.id ? membershipStatus : 'idle';
+                const membershipMatchForServer =
+                  membershipCheckState === 'match'
+                    ? true
+                    : srv.id === server?.id
+                      ? false
+                      : true;
+                const state = buildAccessState(
+                  srv,
+                  trimmedEmail,
+                  membershipMatchForServer
+                );
                 const needsRequest = !state.canAutoJoin;
                 const showAppealSection = state.appealsEnabled;
                 const requiredDomain = srv.required_email_domain || srv.requiredEmailDomain || '';
                 const appealUnavailableMessage = state.appealsDisabled;
+                const membershipPending = membershipCheckState === 'checking';
+                const membershipMismatch = membershipCheckState === 'nomatch';
+                const membershipFailed = membershipCheckState === 'error';
+                const membershipVerified = membershipCheckState === 'match';
                 const accentColors = [
                   'border-l-emerald-500/50 bg-emerald-500/5',
                   'border-l-blue-500/50 bg-blue-500/5',
@@ -587,6 +695,19 @@ const Home = () => {
                 ];
                 const cardAccent = accentColors[index % accentColors.length];
                 const isCopied = copiedServer === srv.id;
+                const statusInfo = serverStatus[srv.id];
+                const statusPending = statusInfo?.pending || statusInfo?.online === null;
+                const statusOnline = statusInfo?.online;
+                const statusText = statusPending
+                  ? `PINGING${'.'.repeat((pingTick % 3) + 1)}`
+                  : statusOnline
+                    ? 'ONLINE'
+                    : 'OFFLINE';
+                const statusClass = statusPending
+                  ? 'text-muted-foreground'
+                  : statusOnline
+                    ? 'text-green-600'
+                    : 'text-red-600';
 
                 if (state.mode === 'open') {
                   return (
@@ -598,18 +719,23 @@ const Home = () => {
                               <Server className="w-5 h-5" />
                               {srv.name}
                             </div>
-                            <div className="text-sm text-muted-foreground font-medium">
-                              Players:{' '}
-                              {serverStatus[srv.id]?.pending && serverStatus[srv.id]?.online === null
-                                ? '...'
-                                : serverStatus[srv.id]?.players?.online !== undefined &&
-                                  serverStatus[srv.id]?.players?.online !== null &&
-                                  serverStatus[srv.id]?.players?.max !== undefined &&
-                                  serverStatus[srv.id]?.players?.max !== null
-                                  ? `${serverStatus[srv.id]?.players?.online}/${serverStatus[srv.id]?.players?.max}`
-                                  : serverStatus[srv.id]?.online
-                                    ? serverStatus[srv.id]?.players?.online ?? 'Unknown'
-                                    : 'Offline'}
+                            <div className="text-sm text-muted-foreground font-medium text-right">
+                              <div>
+                                Players:{' '}
+                                {serverStatus[srv.id]?.pending && serverStatus[srv.id]?.online === null
+                                  ? '...'
+                                  : serverStatus[srv.id]?.players?.online !== undefined &&
+                                    serverStatus[srv.id]?.players?.online !== null &&
+                                    serverStatus[srv.id]?.players?.max !== undefined &&
+                                    serverStatus[srv.id]?.players?.max !== null
+                                    ? `${serverStatus[srv.id]?.players?.online}/${serverStatus[srv.id]?.players?.max}`
+                                    : serverStatus[srv.id]?.online
+                                      ? serverStatus[srv.id]?.players?.online ?? 'Unknown'
+                                      : 'Offline'}
+                              </div>
+                              <div className={cn('font-semibold', statusClass)}>
+                                Status: {statusText}
+                              </div>
                             </div>
                           </CardTitle>
                           <CardDescription>{srv.description}</CardDescription>
@@ -660,26 +786,31 @@ const Home = () => {
                 return (
                   <TabsContent key={srv.id} value={srv.id} className="space-y-6 mt-6">
                     <Card className={`border-l-4 ${cardAccent}`}>
-                      <CardHeader>
-                        <CardTitle className="flex items-center justify-between gap-4 flex-wrap">
-                          <div className="flex items-center gap-2">
-                            <Server className="w-5 h-5" />
-                            {srv.name}
-                          </div>
-                          <div className="text-sm text-muted-foreground font-medium">
-                            Players:{' '}
-                            {serverStatus[srv.id]?.pending && serverStatus[srv.id]?.online === null
-                              ? '...'
-                              : serverStatus[srv.id]?.players?.online !== undefined &&
-                                serverStatus[srv.id]?.players?.online !== null &&
-                                serverStatus[srv.id]?.players?.max !== undefined &&
-                                serverStatus[srv.id]?.players?.max !== null
-                                ? `${serverStatus[srv.id]?.players?.online}/${serverStatus[srv.id]?.players?.max}`
-                                : serverStatus[srv.id]?.online
-                                  ? serverStatus[srv.id]?.players?.online ?? 'Unknown'
-                                  : 'Offline'}
-                          </div>
-                        </CardTitle>
+                        <CardHeader>
+                          <CardTitle className="flex items-center justify-between gap-4 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <Server className="w-5 h-5" />
+                              {srv.name}
+                            </div>
+                            <div className="text-sm text-muted-foreground font-medium text-right">
+                              <div>
+                                Players:{' '}
+                                {serverStatus[srv.id]?.pending && serverStatus[srv.id]?.online === null
+                                  ? '...'
+                                  : serverStatus[srv.id]?.players?.online !== undefined &&
+                                    serverStatus[srv.id]?.players?.online !== null &&
+                                    serverStatus[srv.id]?.players?.max !== undefined &&
+                                    serverStatus[srv.id]?.players?.max !== null
+                                    ? `${serverStatus[srv.id]?.players?.online}/${serverStatus[srv.id]?.players?.max}`
+                                    : serverStatus[srv.id]?.online
+                                      ? serverStatus[srv.id]?.players?.online ?? 'Unknown'
+                                      : 'Offline'}
+                              </div>
+                              <div className={cn('font-semibold', statusClass)}>
+                                Status: {statusText}
+                              </div>
+                            </div>
+                          </CardTitle>
                         <CardDescription>{srv.description}</CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-6">
@@ -725,18 +856,40 @@ const Home = () => {
                                   : 'your.email@example.com'
                               }
                             />
-                            <p className="text-xs text-muted-foreground">
-                              As soon as the email looks valid, the identity section will slide into view.
-                            </p>
-                          </div>
-                          {state.requiresStudentEmail && trimmedEmail && !state.hasRequiredEmail && (
-                            <p className="text-sm text-destructive">
-                              {requiredDomain
-                                ? `Student email required (${requiredDomain})`
-                                : 'Student email required'}
-                            </p>
-                          )}
-                        </StepCard>
+                          <p className="text-xs text-muted-foreground">
+                            As soon as the email looks valid, the identity section will slide into view.
+                          </p>
+                        </div>
+                        {state.requiresStudentEmail && trimmedEmail && !state.hasRequiredEmail && (
+                          <p className="text-sm text-destructive">
+                            {requiredDomain
+                              ? `Student email required (${requiredDomain})`
+                              : 'Student email required'}
+                          </p>
+                        )}
+                        {state.requiresMembership && trimmedEmail && (
+                          <>
+                            {membershipMismatch && (
+                              <p className="text-sm text-destructive">
+                                This server requires a FUTF membership email (Orbi export). Use the address linked to your membership.
+                              </p>
+                            )}
+                            {membershipFailed && (
+                              <p className="text-sm text-destructive">
+                                Could not validate membership right now. Please try again in a moment.
+                              </p>
+                            )}
+                            {membershipPending && (
+                              <p className="text-xs text-muted-foreground">Checking membership…</p>
+                            )}
+                            {membershipVerified && (
+                              <p className="text-sm text-green-600">
+                                Membership verified. You can continue with this address.
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </StepCard>
 
                         <StepCard
                           step={2}
@@ -828,7 +981,9 @@ const Home = () => {
                               <p className="text-sm text-muted-foreground">
                                 {state.policy === 'always'
                                   ? 'This server manually reviews every request. Explain why you should be admitted.'
-                                  : 'You do not meet the student email requirement. Share your motivation so admins can review your case.'}
+                                  : state.requiresMembership && !state.hasMembership
+                                    ? 'You are not on the FUTF membership list. Explain your situation so admins can review your case.'
+                                    : 'You do not meet the student email requirement. Share your motivation so admins can review your case.'}
                               </p>
                               <Textarea
                                 value={note}
@@ -841,14 +996,22 @@ const Home = () => {
 
                           {appealUnavailableMessage && (
                             <p className="text-sm text-destructive">
-                              Appeals are disabled for this email. Please use your student address
-                              {requiredDomain ? ` (${requiredDomain})` : ''} to join this server.
+                              {state.requiresMembership
+                                ? 'Appeals are disabled for non-members. Use the email tied to your FUTF membership to join this server.'
+                                : (
+                                  <>
+                                    Appeals are disabled for this email. Please use your student address
+                                    {requiredDomain ? ` (${requiredDomain})` : ''} to join this server.
+                                  </>
+                                )}
                             </p>
                           )}
 
                           {!showAppealSection && !appealUnavailableMessage && state.policy === 'non_student' && state.hasRequiredEmail && (
                             <p className="text-sm text-muted-foreground">
-                              Student email verified. This request will be approved instantly.
+                              {state.requiresMembership
+                                ? 'FUTF membership verified. This request will be approved instantly.'
+                                : 'Student email verified. This request will be approved instantly.'}
                             </p>
                           )}
 

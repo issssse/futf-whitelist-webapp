@@ -2,11 +2,13 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
-const APPEAL_POLICIES = ['never', 'non_student', 'always'];
+const APPEAL_POLICIES = ['never', 'non_student', 'non_member', 'always'];
+const MEMBERSHIP_ACCESS_LEVELS = ['member'];
 
 const normalizeAppealPolicy = (value) => {
   if (value && APPEAL_POLICIES.includes(value)) {
-    return value;
+    // Treat non_member as the same flavour as non_student for compatibility.
+    return value === 'non_member' ? 'non_student' : value;
   }
   if (value === 'students') {
     return 'non_student';
@@ -57,11 +59,15 @@ async function createServer(data) {
   const accessLevel = data.accessLevel || 'open';
   const normalizedPolicy = normalizeAppealPolicy(data.appealPolicy);
   const appealPolicy =
-    accessLevel === 'appeal_only'
-      ? 'always'
-      : accessLevel === 'open'
-        ? 'never'
-        : normalizedPolicy;
+    accessLevel === 'member'
+      ? data.appealPolicy
+        ? normalizeAppealPolicy(data.appealPolicy)
+        : 'never'
+      : accessLevel === 'appeal_only'
+        ? 'always'
+        : accessLevel === 'open'
+          ? 'never'
+          : normalizedPolicy;
 
   const created = await prisma.serverConfig.create({
     data: {
@@ -91,7 +97,11 @@ async function updateServer(serverId, data) {
   const nextAccessLevel = data.accessLevel || existing.accessLevel || 'open';
   let nextAppealPolicy = existing.appealPolicy || 'never';
 
-  if (nextAccessLevel === 'appeal_only') {
+  if (nextAccessLevel === 'member') {
+    nextAppealPolicy = data.appealPolicy
+      ? normalizeAppealPolicy(data.appealPolicy)
+      : existing.appealPolicy || 'never';
+  } else if (nextAccessLevel === 'appeal_only') {
     nextAppealPolicy = 'always';
   } else if (nextAccessLevel === 'open') {
     nextAppealPolicy = 'never';
@@ -180,6 +190,15 @@ async function normalizeOrder() {
   }
 }
 
+const requiresMembership = (server) =>
+  Boolean(server && MEMBERSHIP_ACCESS_LEVELS.includes(server.accessLevel));
+
+const membershipAppealsEnabled = (server) => {
+  if (!requiresMembership(server)) return false;
+  const policy = server?.appealPolicy || server?.appeal_policy || 'never';
+  return policy === 'non_student';
+};
+
 module.exports = {
   getServerConfig,
   getAllServers,
@@ -187,4 +206,8 @@ module.exports = {
   updateServer,
   deleteServer,
   reorderServers,
+  normalizeOrder,
+  MEMBERSHIP_ACCESS_LEVELS,
+  requiresMembership,
+  membershipAppealsEnabled,
 };

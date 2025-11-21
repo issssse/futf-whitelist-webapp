@@ -3,11 +3,11 @@ export interface Server {
   name: string;
   description: string;
   ip: string;
-  accessLevel: 'public' | 'open' | 'student' | 'verified';
+  accessLevel: 'public' | 'open' | 'student' | 'verified' | 'member';
   requiredEmailDomain?: string;
   contact?: string;
   rules: string[];
-  appealPolicy?: 'always' | 'non_student' | 'never';
+  appealPolicy?: 'always' | 'non_student' | 'non_member' | 'never';
   order?: number;
 }
 

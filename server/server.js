@@ -10,6 +10,7 @@ const pluginRoutes = require('./routes/plugin.routes');
 const upgradeRoutes = require('./routes/upgrade.routes');
 const userRoutes = require('./routes/user.routes');
 const otpRoutes = require('./routes/otp.routes');
+const orbiRoutes = require('./routes/orbi.routes');
 const appealRoutes = require('./routes/appeal.routes');
 
 const app = express();
@@ -26,6 +27,7 @@ app.use('/api/public', publicRoutes);
 app.use('/api/upgrade', upgradeRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/otp', otpRoutes);
+app.use('/api/orbi', orbiRoutes);
 app.use('/api/appeals', appealRoutes);
 app.use('/api', pluginRoutes);
 

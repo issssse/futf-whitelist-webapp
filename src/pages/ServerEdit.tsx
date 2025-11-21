@@ -12,14 +12,20 @@ import { useToast } from '@/hooks/use-toast';
 import * as api from '@/lib/api';
 import type { Server } from '@/lib/types';
 
-type AccessModeOption = 'open' | 'student_with_appeal' | 'student_strict' | 'appeal_only';
+type AccessModeOption =
+  | 'open'
+  | 'student_with_appeal'
+  | 'student_strict'
+  | 'member_with_appeal'
+  | 'member_strict'
+  | 'appeal_only';
 
 interface EditableServer {
   id: string;
   name: string;
   description: string;
   ip: string;
-  accessLevel: 'open' | 'student' | 'appeal_only';
+  accessLevel: 'open' | 'student' | 'appeal_only' | 'member';
   appeal_policy: 'always' | 'non_student' | 'never';
   required_email_domain: string | null;
   contact: string | null;
@@ -38,6 +44,9 @@ const ServerEdit = () => {
   const resolveAccessMode = (srv: EditableServer): AccessModeOption => {
     if (srv.accessLevel === 'open') return 'open';
     if (srv.accessLevel === 'appeal_only') return 'appeal_only';
+    if (srv.accessLevel === 'member') {
+      return srv.appeal_policy === 'non_student' ? 'member_with_appeal' : 'member_strict';
+    }
     return srv.appeal_policy === 'non_student' ? 'student_with_appeal' : 'student_strict';
   };
 
@@ -52,6 +61,12 @@ const ServerEdit = () => {
         break;
       case 'student_strict':
         setServer({ ...server, accessLevel: 'student', appeal_policy: 'never' });
+        break;
+      case 'member_with_appeal':
+        setServer({ ...server, accessLevel: 'member', appeal_policy: 'non_student' });
+        break;
+      case 'member_strict':
+        setServer({ ...server, accessLevel: 'member', appeal_policy: 'never' });
         break;
       case 'appeal_only':
         setServer({ ...server, accessLevel: 'appeal_only', appeal_policy: 'always' });
@@ -87,7 +102,7 @@ const ServerEdit = () => {
     name: serverData.name,
     description: serverData.description,
     ip: serverData.ip,
-    accessLevel: (serverData.accessLevel as 'open' | 'student' | 'appeal_only') || 'open',
+    accessLevel: (serverData.accessLevel as 'open' | 'student' | 'appeal_only' | 'member') || 'open',
     appeal_policy: (serverData as any).appealPolicy || 'never',
     required_email_domain: serverData.requiredEmailDomain || null,
     contact: serverData.contact || null,
@@ -276,6 +291,8 @@ const ServerEdit = () => {
                 <SelectItem value="open">Open for everyone</SelectItem>
                 <SelectItem value="student_with_appeal">Student email required, allow appeals for others</SelectItem>
                 <SelectItem value="student_strict">Student email required, no appeals</SelectItem>
+                <SelectItem value="member_with_appeal">FUTF membership required, allow appeals for others</SelectItem>
+                <SelectItem value="member_strict">FUTF membership required, no appeals</SelectItem>
                 <SelectItem value="appeal_only">Appeal only (manual review)</SelectItem>
               </SelectContent>
             </Select>

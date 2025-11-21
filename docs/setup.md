@@ -89,6 +89,12 @@ npm run docs:build
 
 Serve `dist/` via nginx/Caddy or `vite preview`. Deploy the Express server with PM2/systemd (see guide chapter 4).
 
+## 7. FUTF membership verification (Orbi)
+
+- Place the latest `FUTF_orbi.csv` alongside the repo (default path: `/code/isacc/FUTF_orbi.csv`) or set `ORBI_CSV_PATH` for the API.
+- The API loads the CSV into memory on boot; restart `web2-api-staging` or call the admin-only `POST /api/orbi/reload` after replacing the file.
+- Admins can choose “FUTF membership required” access modes (with or without appeals) per server; the frontend validates emails against the loaded membership list.
+
 ## Next steps
 
 - Read [Chapter 1 – Foundations](./guide/chapter-1-foundations.md)

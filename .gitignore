@@ -29,3 +29,4 @@ server/node_modules
 server/prisma/dev.db
 server/.env
 .env
+data/FUTF_orbi.csv

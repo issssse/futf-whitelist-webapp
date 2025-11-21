@@ -1,7 +1,12 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const { generateToken, sendVerificationEmail } = require('../services/email.service');
-const { getServerConfig } = require('../services/server.service');
+const {
+  getServerConfig,
+  requiresMembership,
+  membershipAppealsEnabled,
+} = require('../services/server.service');
+const { isOrbiMember } = require('../services/orbi.service');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -20,18 +25,56 @@ router.post('/register', async (req, res) => {
       return res.status(404).json({ error: 'Server not found' });
     }
 
-    // Check if server requires student email
-    const isStudent = server.accessLevel === 'student' && email.endsWith(server.requiredEmailDomain);
+    const requiredDomain = server.requiredEmailDomain || server.required_email_domain;
+    const requiresStudentEmail = server.accessLevel === 'student';
+    const hasStudentEmail =
+      requiresStudentEmail && requiredDomain
+        ? email.toLowerCase().trim().endsWith(requiredDomain.toLowerCase())
+        : requiresStudentEmail
+          ? true
+          : false;
 
-    if (server.accessLevel === 'student' && !isStudent) {
-      return res.status(400).json({
-        error: `This server requires a ${server.requiredEmailDomain} email address`
-      });
+    const requiresOrbiMembership = requiresMembership(server);
+    let hasOrbiMembership = true;
+    if (requiresOrbiMembership) {
+      try {
+        const orbiResult = isOrbiMember(email);
+        hasOrbiMembership = orbiResult.member;
+      } catch (err) {
+        console.error('Membership validation failed', err);
+        return res.status(err.code === 'ENOENT' ? 503 : 500).json({
+          error:
+            err.code === 'ENOENT'
+              ? 'Membership list missing on server'
+              : 'Unable to verify membership right now',
+        });
+      }
     }
 
-    // Check if server is public (no special requirements)
-    if (server.accessLevel === 'public') {
-      // Public servers still need verification, just no special domain requirements
+    const isStudent = hasStudentEmail || hasOrbiMembership || false;
+
+    const policy =
+      server.accessLevel === 'appeal_only'
+        ? 'always'
+        : server.appealPolicy || server.appeal_policy || 'never';
+
+    const appealsEnabled =
+      policy === 'always' ||
+      (requiresOrbiMembership && !hasOrbiMembership && membershipAppealsEnabled(server)) ||
+      (requiresStudentEmail && !hasStudentEmail && policy === 'non_student');
+
+    const emailQualifies =
+      (!requiresOrbiMembership || hasOrbiMembership) &&
+      (!requiresStudentEmail || hasStudentEmail);
+
+    if (!emailQualifies && !appealsEnabled) {
+      return res.status(400).json({
+        error: requiresOrbiMembership
+          ? 'This server requires a verified FUTF membership email.'
+          : requiredDomain
+            ? `This server requires an email ending with ${requiredDomain}`
+            : 'This server requires a verified email for access.',
+      });
     }
 
     const token = generateToken();

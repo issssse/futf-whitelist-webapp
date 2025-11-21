@@ -80,6 +80,20 @@ export const sendOtp = (email: string) =>
 export const verifyOtp = (email: string, code: string) =>
   api.post('/otp/verify', { email, code });
 
+// Orbi membership
+export const checkOrbiMembership = (email: string) =>
+  api.get('/orbi/check', { params: { email } });
+
+export const reloadOrbiMembership = (token: string) =>
+  api.post('/orbi/reload', {}, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+export const getOrbiStats = (token: string) =>
+  api.get('/orbi/stats', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
 // Appeals
 export const createAppeal = (data: {
   serverId: string;
@@ -149,5 +163,8 @@ export default {
   getAccessRequests,
   approveRequest,
   rejectRequest,
+  checkOrbiMembership,
+  reloadOrbiMembership,
+  getOrbiStats,
   api,
 };
