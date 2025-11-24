@@ -11,7 +11,8 @@ import type { Server } from '@/lib/types';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 
-const ADMIN_DOCS_URL = import.meta.env.VITE_ADMIN_DOCS_URL || '/docs/admin-operations.html';
+// Docs landing so admins can reach all sections (handbook + DB ref)
+const ADMIN_DOCS_URL = import.meta.env.VITE_ADMIN_DOCS_URL || '/docs/index.html';
 
 interface Appeal {
   id: string;

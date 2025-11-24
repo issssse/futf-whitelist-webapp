@@ -29,4 +29,5 @@ server/node_modules
 server/prisma/dev.db
 server/.env
 .env
-data/FUTF_orbi.csv
+# Prevent committing Orbi membership exports/tests (GDPR-sensitive)
+data/FUTF_orbi*.csv

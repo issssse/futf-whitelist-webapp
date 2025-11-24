@@ -42,13 +42,18 @@ Catalog of all API routes, services, and maintenance scripts.
 
 ### Public (`routes/public.routes.js`)
 - `GET /api/public/check-whitelist/:serverId?username=IGN`
-- `POST /api/public/get-names/:serverId`
-- `GET /api/check-user?username=IGN[&serverId=id]` *(plugin compatibility; falls back to `PLUGIN_DEFAULT_SERVER_ID`)*
+- `GET /api/public/get-names/:serverId` *(body: { usernames: [] })*
+- (Legacy) `GET /api/check-user?username=IGN[&serverId=id]` *(plugin compatibility; default server now from DB order)*
+
+### Orbi membership (`routes/orbi.routes.js`)
+- `GET /api/orbi/check?email=ADDR`
+- `POST /api/orbi/upload` *(admin CSV import; dry-run via `?dryRun=true`)*
 
 ## Services
 
 - `services/email.service.js` – Nodemailer transport (JSON transport fallback for dev), OTP + appeal notifications.
 - `services/server.service.js` – Prisma-backed CRUD helpers for the `ServerConfig` table (`getAllServers`, `updateServer`, etc.).
+- `services/orbi.service.js` – Normalizes + hashes emails with `ORBI_HASH_PEPPER`, imports Orbi CSVs, membership checks.
 
 ## Middleware
 
@@ -86,6 +91,8 @@ npx prisma studio
 
 - `.env` – `DATABASE_URL`, `PORT`, SMTP credentials, `JWT_SECRET`, `FRONTEND_URL`.
 - `ServerConfig` (Prisma model) – Source of truth for server metadata (access modes, appeal policies, rules).
+- `OrbiMember` (Prisma model) – FUTF membership list; emails stored as normalized peppered hashes, membershipId is unique key.
+- Full schema and operational guidance: [Database Reference](./database.md).
 
 ## Testing endpoints
 

@@ -16,11 +16,12 @@ Welcome! This is the **operations landing page** for the Web2 platform. If you a
 - Start here, then dive into the [Admin Operations Handbook](./guide/admin-operations.md) for per-button instructions.
 - Provision or rotate accounts with the new [Admin Account Provisioning guide](./guide/admin-accounts.md).
 - Use the “Admin Docs” button in the dashboard header to launch these pages in a new tab while you work.
+- Need a map of the data model? See the [Database Reference](./reference/database.md).
 
 **Developers & infrastructure**
 
 - Jump straight to the [Setup Checklist](./setup.md) and the five developer chapters in the sidebar.
-- Keep the [Backend Reference](/reference/backend.md) nearby when touching Prisma, Express routes, or PM2.
+- Keep the [Backend Reference](/reference/backend.md) nearby when touching Prisma, Express routes, or PM2. Pair it with the [Database Reference](/reference/database.md) for current schemas and import rules.
 - Traefik/DNS/port questions should follow the procedures laid out in [Chapter 4 – Deploy & Operate](./guide/chapter-4-devops.md).
 
 ## 1. Daily admin checklist
