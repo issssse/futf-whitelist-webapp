@@ -4,9 +4,16 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Server, CheckCircle2, Mail, Gamepad2, Circle, Copy, Check } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Server, CheckCircle2, Mail, Gamepad2, Circle, Copy, Check, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { checkServerStatus } from '@/lib/serverStatus';
 import * as api from '@/lib/api';
@@ -224,6 +231,10 @@ const Home = () => {
   const [membershipStatus, setMembershipStatus] = useState<'idle' | 'checking' | 'match' | 'nomatch' | 'error'>('idle');
   const [pingTick, setPingTick] = useState(0);
   const [membershipName, setMembershipName] = useState<string | null>(null);
+  const [rulesDialogOpen, setRulesDialogOpen] = useState(false);
+  const [pendingSubmit, setPendingSubmit] = useState(false);
+  const [rulesScrollComplete, setRulesScrollComplete] = useState(false);
+  const rulesScrollRef = useRef<HTMLDivElement | null>(null);
 
   // Derived values
   const server = servers.find((s) => s.id === selectedServer);
@@ -498,7 +509,34 @@ const Home = () => {
     }
   };
 
-  const handleSubmit = async () => {
+  const resetRulesDialogState = useCallback(() => {
+    setRulesScrollComplete(false);
+    setPendingSubmit(false);
+  }, []);
+
+  const handleRulesDialogChange = useCallback(
+    (open: boolean) => {
+      setRulesDialogOpen(open);
+      if (!open) {
+        resetRulesDialogState();
+      } else if (rulesAccepted) {
+        setRulesScrollComplete(true);
+      }
+    },
+    [resetRulesDialogState, rulesAccepted]
+  );
+
+  const handleRulesScroll = useCallback(() => {
+    const container = rulesScrollRef.current;
+    if (!container || rulesScrollComplete) return;
+
+    const threshold = 8;
+    if (container.scrollTop + container.clientHeight >= container.scrollHeight - threshold) {
+      setRulesScrollComplete(true);
+    }
+  }, [rulesScrollComplete]);
+
+  const performSubmit = async () => {
     if (!server) return;
 
     if (server.accessLevel === 'open') {
@@ -509,11 +547,11 @@ const Home = () => {
       return;
     }
 
-    if (!email || !minecraftName || !realName || !rulesAccepted) {
+    if (!email || !minecraftName || !realName) {
       toast({
         variant: 'destructive',
         title: 'Missing Information',
-        description: 'Please complete all fields and accept the rules',
+        description: 'Please complete all fields before continuing',
       });
       return;
     }
@@ -584,6 +622,7 @@ const Home = () => {
       setEmailVerified(false);
       setLinkSent(false);
       setVerifiedUserId(null);
+      resetRulesDialogState();
     } catch (error: any) {
       console.error('Error submitting request:', error);
       toast({
@@ -593,6 +632,36 @@ const Home = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!server) {
+      toast({
+        variant: 'destructive',
+        title: 'No server selected',
+        description: 'Please pick a server before submitting.',
+      });
+      return;
+    }
+
+    if (!rulesAccepted) {
+      setPendingSubmit(true);
+      setRulesDialogOpen(true);
+      setRulesScrollComplete(false);
+      return;
+    }
+
+    await performSubmit();
+  };
+
+  const handleAcceptRules = async () => {
+    setRulesAccepted(true);
+    setRulesDialogOpen(false);
+    const shouldSubmit = pendingSubmit;
+    resetRulesDialogState();
+    if (shouldSubmit) {
+      await performSubmit();
     }
   };
 
@@ -965,13 +1034,41 @@ const Home = () => {
                           open={showFinalSection}
                         >
                           {srv.rules && srv.rules.length > 0 && (
-                            <div className="rounded-2xl border border-border/60 bg-background/40 p-4 space-y-2">
-                              <p className="text-sm font-semibold">Server rules</p>
-                              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                                {srv.rules.map((rule, idx) => (
-                                  <li key={`${srv.id}-rule-${idx}`}>{rule}</li>
-                                ))}
-                              </ul>
+                            <div className="rounded-2xl border border-border/60 bg-background/40 p-4 space-y-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold">Server rules</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    You must review and accept these rules before sending your request.
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {rulesAccepted && (
+                                    <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-600">
+                                      Accepted
+                                    </span>
+                                  )}
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setPendingSubmit(false);
+                                      setRulesDialogOpen(true);
+                                      setRulesScrollComplete(rulesAccepted);
+                                    }}
+                                  >
+                                    View & accept
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="rounded-xl border border-dashed border-border/70 bg-muted/30 p-3 text-sm text-muted-foreground">
+                                <ul className="list-disc space-y-1 pl-5">
+                                  {srv.rules.map((rule, idx) => (
+                                    <li key={`${srv.id}-rule-${idx}`}>{rule}</li>
+                                  ))}
+                                </ul>
+                              </div>
                             </div>
                           )}
 
@@ -1000,22 +1097,12 @@ const Home = () => {
                             </p>
                           )}
 
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`rules-${srv.id}`}
-                              checked={rulesAccepted}
-                              onCheckedChange={(checked) => setRulesAccepted(!!checked)}
-                            />
-                            <Label htmlFor={`rules-${srv.id}`} className="text-sm text-muted-foreground">
-                              I have read and agree to the server rules
-                            </Label>
-                          </div>
                         </StepCard>
 
                         <Button
                           onClick={handleSubmit}
                           className="w-full"
-                          disabled={loading || !emailVerified || !rulesAccepted}
+                          disabled={loading || !emailVerified}
                         >
                           {loading
                             ? 'Submitting...'
@@ -1034,6 +1121,82 @@ const Home = () => {
           </div>
         )}
       </div>
+
+      <Dialog open={rulesDialogOpen} onOpenChange={handleRulesDialogChange}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Review & accept the rules</DialogTitle>
+            <DialogDescription>
+              You must read and accept the rules for {server?.name || 'this server'} before submitting your request.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+              <span className="flex items-center gap-2 font-medium text-foreground">
+                <FileText className="h-4 w-4" />
+                {server?.name ? `${server.name} rules` : 'Server rules'}
+              </span>
+              <div className="flex items-center gap-3">
+                <a
+                  href="/rules-se.pdf"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline decoration-dotted underline-offset-4 hover:text-foreground"
+                >
+                  Open PDF
+                </a>
+                <span aria-hidden className="text-border">•</span>
+                <a
+                  href="/rules-se.md"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline decoration-dotted underline-offset-4 hover:text-foreground"
+                >
+                  View Markdown
+                </a>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border/70 bg-muted/40 p-3">
+              <div
+                ref={rulesScrollRef}
+                onScroll={handleRulesScroll}
+                className="max-h-[360px] overflow-y-auto rounded-lg bg-background/80 p-4 shadow-inner"
+              >
+                {server?.rules && server.rules.length > 0 ? (
+                  <ul className="list-decimal space-y-2 pl-5 text-sm leading-relaxed text-foreground">
+                    {server.rules.map((rule, idx) => (
+                      <li key={`${server.id}-modal-rule-${idx}`} className="marker:text-primary">
+                        {rule}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Rules are not available for this server yet. Please contact an administrator for details.
+                  </p>
+                )}
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Scroll to the bottom to enable the accept button. Accepting will immediately send your request.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="sm:justify-between">
+            <div className="text-sm text-muted-foreground">
+              Acceptance is required to continue. Close this dialog to keep editing your request.
+            </div>
+            <Button
+              onClick={handleAcceptRules}
+              disabled={(server?.rules?.length || 0) > 0 ? !rulesScrollComplete || loading : loading}
+            >
+              {pendingSubmit ? 'Accept & submit' : 'Accept rules'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
