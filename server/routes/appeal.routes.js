@@ -6,7 +6,7 @@ const {
   requiresMembership,
   membershipAppealsEnabled,
 } = require('../services/server.service');
-const { sendAppealNotification } = require('../services/email.service');
+const { sendAppealNotification, sendAppealDecisionEmail } = require('../services/email.service');
 const { isOrbiMember } = require('../services/orbi.service');
 
 const router = express.Router();
@@ -53,6 +53,21 @@ router.post('/', async (req, res) => {
     const isVerified = await ensureEmailVerified(normalizedEmail);
     if (!isVerified) {
       return res.status(400).json({ error: 'Email not verified' });
+    }
+
+    // Block re-use of already-whitelisted email for this server
+    const existingUser = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      include: {
+        serverAccess: {
+          where: { serverId },
+        },
+      },
+    });
+    if (existingUser?.serverAccess?.length && existingUser.serverAccess[0].rulesAccepted) {
+      return res.status(400).json({
+        error: 'This email is already whitelisted for this server.',
+      });
     }
 
     const requiredDomain = server.requiredEmailDomain || server.required_email_domain;
@@ -178,6 +193,11 @@ router.post('/:id/approve', authenticateAdmin, async (req, res) => {
         reviewedAt: new Date(),
       },
     });
+    await sendAppealDecisionEmail(appeal.userEmail, {
+      serverName: appeal.serverId,
+      decision: 'approved',
+      minecraftName: appeal.minecraftName,
+    });
     res.json({ message: 'Appeal approved', appeal });
   } catch (error) {
     console.error(error);
@@ -194,6 +214,11 @@ router.post('/:id/reject', authenticateAdmin, async (req, res) => {
         reviewedBy: req.adminId,
         reviewedAt: new Date(),
       },
+    });
+    await sendAppealDecisionEmail(appeal.userEmail, {
+      serverName: appeal.serverId,
+      decision: 'rejected',
+      minecraftName: appeal.minecraftName,
     });
     res.json({ message: 'Appeal rejected', appeal });
   } catch (error) {

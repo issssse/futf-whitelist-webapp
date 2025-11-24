@@ -20,6 +20,7 @@ router.get('/check', async (req, res) => {
       member: result.member,
       normalizedEmail: result.normalizedEmail,
       source: 'csv',
+      name: result.name,
     });
   } catch (error) {
     console.error('Failed to check Orbi membership', error);

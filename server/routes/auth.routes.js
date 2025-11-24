@@ -82,7 +82,15 @@ router.post('/register', async (req, res) => {
     // Try to find existing user
     let user = await prisma.user.findUnique({
       where: { email },
+      include: { serverAccess: true },
     });
+
+    const existingAccess = user?.serverAccess?.find((access) => access.serverId === serverId);
+    if (existingAccess?.rulesAccepted) {
+      return res.status(400).json({
+        error: 'This email is already whitelisted for this server.',
+      });
+    }
 
     if (user) {
       // Update existing user

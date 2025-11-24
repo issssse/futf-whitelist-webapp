@@ -223,6 +223,7 @@ const Home = () => {
   const [verifiedUserId, setVerifiedUserId] = useState<string | null>(null);
   const [membershipStatus, setMembershipStatus] = useState<'idle' | 'checking' | 'match' | 'nomatch' | 'error'>('idle');
   const [pingTick, setPingTick] = useState(0);
+  const [membershipName, setMembershipName] = useState<string | null>(null);
 
   // Derived values
   const server = servers.find((s) => s.id === selectedServer);
@@ -382,6 +383,7 @@ const Home = () => {
       .then((res) => {
         if (cancelled) return;
         setMembershipStatus(res.data?.member ? 'match' : 'nomatch');
+        setMembershipName(res.data?.name || null);
       })
       .catch((error) => {
         console.error('Failed to validate membership', error);
@@ -394,6 +396,12 @@ const Home = () => {
       cancelled = true;
     };
   }, [server, trimmedEmail, selectedServer]);
+
+  useEffect(() => {
+    if (membershipStatus === 'match' && membershipName && !realName.trim()) {
+      setRealName(membershipName);
+    }
+  }, [membershipStatus, membershipName, realName]);
 
   useEffect(() => {
     return () => {
@@ -833,13 +841,13 @@ const Home = () => {
                           </Button>
                         </div>
 
-                        <StepCard
-                          step={1}
-                          title="Contact email"
-                          description="Enter the address that should receive verification codes. The selected tab already represents your target server."
-                          open
-                          className="mt-0"
-                        >
+                <StepCard
+                  step={1}
+                  title="Contact email"
+                  description="Enter the address that should receive verification codes."
+                  open
+                  className="mt-0"
+                >
                           <div className="space-y-2">
                             <Label htmlFor={`email-${srv.id}`} className="flex items-center gap-2">
                               <Mail className="w-4 h-4" />
@@ -856,9 +864,7 @@ const Home = () => {
                                   : 'your.email@example.com'
                               }
                             />
-                          <p className="text-xs text-muted-foreground">
-                            As soon as the email looks valid, the identity section will slide into view.
-                          </p>
+                            <p className="text-xs text-muted-foreground">Continue with a valid email.</p>
                         </div>
                         {state.requiresStudentEmail && trimmedEmail && !state.hasRequiredEmail && (
                           <p className="text-sm text-destructive">
@@ -941,18 +947,12 @@ const Home = () => {
                             </Button>
                             {linkSent && (
                               <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm text-primary">
-                                We sent a link to <span className="font-semibold">{trimmedEmail}</span>.
-                                If you opened it in another tab on this device, this step will unlock automatically.
+                                We sent a link to <span className="font-semibold">{trimmedEmail}</span>. Open it to verify.
                               </div>
-                            )}
-                            {!linkSent && (
-                              <p className="text-xs text-muted-foreground">
-                                Links expire quickly. If it gets lost, just press the button again to resend.
-                              </p>
                             )}
                             {emailVerified && (
                               <p className="text-sm text-green-500">
-                                Magic link confirmed! You can now complete your whitelist request.
+                                Email confirmed.
                               </p>
                             )}
                           </div>
@@ -978,17 +978,10 @@ const Home = () => {
                           {showAppealSection && (
                             <div className="space-y-2">
                               <Label>Appeal for whitelist</Label>
-                              <p className="text-sm text-muted-foreground">
-                                {state.policy === 'always'
-                                  ? 'This server manually reviews every request. Explain why you should be admitted.'
-                                  : state.requiresMembership && !state.hasMembership
-                                    ? 'You are not on the FUTF membership list. Explain your situation so admins can review your case.'
-                                    : 'You do not meet the student email requirement. Share your motivation so admins can review your case.'}
-                              </p>
                               <Textarea
                                 value={note}
                                 onChange={(e) => setNote(e.target.value)}
-                                placeholder="Tell us why you'd like access..."
+                                placeholder="Reason for access (required)"
                                 rows={4}
                               />
                             </div>
@@ -1004,14 +997,6 @@ const Home = () => {
                                     {requiredDomain ? ` (${requiredDomain})` : ''} to join this server.
                                   </>
                                 )}
-                            </p>
-                          )}
-
-                          {!showAppealSection && !appealUnavailableMessage && state.policy === 'non_student' && state.hasRequiredEmail && (
-                            <p className="text-sm text-muted-foreground">
-                              {state.requiresMembership
-                                ? 'FUTF membership verified. This request will be approved instantly.'
-                                : 'Student email verified. This request will be approved instantly.'}
                             </p>
                           )}
 
