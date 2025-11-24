@@ -12,6 +12,7 @@ const userRoutes = require('./routes/user.routes');
 const otpRoutes = require('./routes/otp.routes');
 const orbiRoutes = require('./routes/orbi.routes');
 const appealRoutes = require('./routes/appeal.routes');
+const lookupRoutes = require('./routes/lookup.routes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -29,6 +30,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/otp', otpRoutes);
 app.use('/api/orbi', orbiRoutes);
 app.use('/api/appeals', appealRoutes);
+app.use('/api', lookupRoutes);
 app.use('/api', pluginRoutes);
 
 // Health check
