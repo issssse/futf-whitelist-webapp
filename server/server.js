@@ -21,6 +21,9 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
+// Lookup endpoints (whitelist/name) before other /api mounts
+app.use('/api', lookupRoutes);
+
 app.use('/api/auth', authRoutes);
 app.use('/api/servers', serverRoutes);
 app.use('/api/admin', adminRoutes);
@@ -30,7 +33,6 @@ app.use('/api/user', userRoutes);
 app.use('/api/otp', otpRoutes);
 app.use('/api/orbi', orbiRoutes);
 app.use('/api/appeals', appealRoutes);
-app.use('/api', lookupRoutes);
 app.use('/api', pluginRoutes);
 
 // Health check
