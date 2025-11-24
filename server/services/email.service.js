@@ -108,6 +108,7 @@ async function sendVerificationEmail(email, token) {
 }
 
 async function sendOtpEmail(email, code) {
+  const supportEmail = process.env.SUPPORT_EMAIL || smtpFrom.replace(/.*<([^>]+)>.*/,'$1') || smtpFrom || 'support@futf.se';
   await sendEmail({
     from: smtpFrom,
     to: email,
@@ -116,6 +117,7 @@ async function sendOtpEmail(email, code) {
       CODE: code,
       APP_NAME: process.env.APP_NAME || 'FUTF Minecraft',
       LOGO_URL: defaultLogoUrl,
+      SUPPORT_EMAIL: supportEmail,
     }),
   });
 

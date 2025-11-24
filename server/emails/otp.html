@@ -2,19 +2,65 @@
        style="background-color:#f4f5fb;padding:32px 0;margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <tr>
     <td align="center">
-      <table role="presentation" cellpadding="0" cellspacing="0" width="420"
-             style="width:100%;max-width:420px;background-color:#ffffff;border-radius:16px;border:1px solid #e5e7eb;box-shadow:0 18px 45px rgba(15,23,42,0.12);color:#0f172a;">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="560"
+             style="width:100%;max-width:560px;background-color:#ffffff;border-radius:18px;border:1px solid #e5e7eb;box-shadow:0 18px 45px rgba(15,23,42,0.12);color:#111827;overflow:hidden;">
         <tr>
-          <td style="padding:18px 24px;border-bottom:1px solid #e5e7eb;background-image:linear-gradient(135deg,#2563eb,#10b981);text-align:center;">
-            <img src="{{LOGO_URL}}" alt="{{APP_NAME}}" width="32" height="32" style="display:block;margin:0 auto 6px;border-radius:6px;border:1px solid rgba(255,255,255,0.35);">
-            <div style="font-size:12px;letter-spacing:0.14em;color:#fef3c7;text-transform:uppercase;font-weight:700;">{{APP_NAME}}</div>
-            <div style="font-size:16px;font-weight:700;color:#f9fafb;margin-top:4px;">Email verification code</div>
+          <td style="padding:18px 24px;border-bottom:1px solid #e5e7eb;background-image:linear-gradient(135deg,#111827,#4b5563);border-radius:18px 18px 0 0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="vertical-align:middle;">
+                  <table role="presentation" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="padding-right:12px;">
+                        <img src="{{LOGO_URL}}" alt="{{APP_NAME}}" width="36" height="36"
+                             style="display:block;border:none;border-radius:0;">
+                      </td>
+                      <td style="font-size:14px;line-height:1.4;color:#f8fafc;">
+                        <div style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#fbbf24;font-weight:700;">
+                          {{APP_NAME}}
+                        </div>
+                        <div style="font-size:14px;font-weight:600;color:#ffffff;">Email verification</div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+                <td align="right" style="font-size:12px;color:#e2e8f0;white-space:nowrap;">
+                  <span style="display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid rgba(255,255,255,0.4);background-color:rgba(0,0,0,0.2);">
+                    One-time code
+                  </span>
+                </td>
+              </tr>
+            </table>
           </td>
         </tr>
         <tr>
-          <td style="padding:24px 28px;text-align:center;font-size:14px;line-height:1.6;">
-            <p style="margin:0 0 10px;color:#4b5563;">Use this code to verify your email. It expires in 10 minutes.</p>
-            <div style="font-size:28px;font-weight:800;letter-spacing:10px;color:#0f172a;background-color:#f8fafc;border:1px solid #e5e7eb;padding:14px 12px;border-radius:12px;">{{CODE}}</div>
+          <td style="padding:24px 32px 10px;">
+            <h1 style="margin:0;font-size:22px;line-height:1.35;font-weight:800;color:#0f172a;">
+              Here’s your verification code
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:0 32px 28px;text-align:left;font-size:14px;line-height:1.6;">
+            <p style="margin:0 0 12px;color:#1f2937;">
+              Use the code below to verify your email. It expires in 10 minutes.
+            </p>
+            <div style="margin:18px 0 18px;text-align:center;">
+              <div style="display:inline-block;font-size:30px;font-weight:800;letter-spacing:10px;color:#0f172a;background-color:#f8fafc;border:1px solid #e5e7eb;padding:14px 12px;border-radius:14px;">
+                {{CODE}}
+              </div>
+            </div>
+            <p style="margin:0;color:#4b5563;font-size:12px;">
+              If you didn’t request this, you can ignore this email.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 32px 22px;border-top:1px solid #e5e7eb;background-color:#f8fafc;font-size:12px;color:#4b5563;text-align:center;">
+            Need help? Contact us at
+            <a href="mailto:{{SUPPORT_EMAIL}}" style="color:#2563eb;text-decoration:none;">
+              {{SUPPORT_EMAIL}}
+            </a>.
           </td>
         </tr>
       </table>
