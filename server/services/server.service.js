@@ -140,6 +140,17 @@ async function getAllServers() {
   return servers.map(toServerPayload);
 }
 
+async function getDefaultServerId() {
+  if (process.env.PLUGIN_DEFAULT_SERVER_ID) {
+    return process.env.PLUGIN_DEFAULT_SERVER_ID;
+  }
+  const first = await prisma.serverConfig.findFirst({
+    orderBy: { order: 'asc' },
+    select: { id: true },
+  });
+  return first?.id || null;
+}
+
 async function createServer(data) {
   const count = await prisma.serverConfig.count();
   const accessLevel = data.accessLevel || 'open';
@@ -307,6 +318,7 @@ const membershipAppealsEnabled = (server) => {
 module.exports = {
   getServerConfig,
   getAllServers,
+  getDefaultServerId,
   createServer,
   updateServer,
   deleteServer,

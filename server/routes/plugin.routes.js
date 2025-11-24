@@ -1,24 +1,22 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
-const { getServerConfig } = require('../services/server.service');
+const { getServerConfig, getDefaultServerId } = require('../services/server.service');
 
 const router = express.Router();
 const prisma = new PrismaClient();
-
-const defaultServerId = process.env.PLUGIN_DEFAULT_SERVER_ID;
 
 router.get('/check-user', async (req, res) => {
   try {
     const username = (req.query.username || '').trim();
     const requestedServerId = (req.query.serverId || '').trim();
-    const serverId = requestedServerId || defaultServerId;
+    const serverId = requestedServerId || (await getDefaultServerId());
 
     if (!username) {
       return res.status(400).json({ error: 'username is required', allowed: false });
     }
 
     if (!serverId) {
-      return res.status(400).json({ error: 'serverId missing (set PLUGIN_DEFAULT_SERVER_ID or provide ?serverId=)', allowed: false });
+      return res.status(400).json({ error: 'serverId missing (add a server in admin or provide ?serverId=)', allowed: false });
     }
 
     const server = await getServerConfig(serverId);

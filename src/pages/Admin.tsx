@@ -1,13 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Shield, Server as ServerIcon, Plus, CheckCircle, XCircle, Mail, User, Calendar, BookOpen, ArrowUp, ArrowDown } from 'lucide-react';
+import { Shield, Server as ServerIcon, Plus, CheckCircle, XCircle, Mail, User, Calendar, BookOpen, ArrowUp, ArrowDown, Upload, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import * as api from '@/lib/api';
 import type { Server } from '@/lib/types';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 
 const ADMIN_DOCS_URL = import.meta.env.VITE_ADMIN_DOCS_URL || '/docs/admin-operations.html';
 
@@ -32,6 +34,15 @@ const Admin = () => {
   const [appeals, setAppeals] = useState<Appeal[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedAppeal, setExpandedAppeal] = useState<string | null>(null);
+  const [orbiStats, setOrbiStats] = useState<{ count: number; updatedAt?: string | null }>({ count: 0, updatedAt: null });
+  const [orbiDialogOpen, setOrbiDialogOpen] = useState(false);
+  const [orbiFileName, setOrbiFileName] = useState('');
+  const [orbiCsv, setOrbiCsv] = useState<string>('');
+  const [orbiSummary, setOrbiSummary] = useState<any | null>(null);
+  const [orbiPreview, setOrbiPreview] = useState<Array<{ name: string; email: string; status: string; validFrom: string }>>([]);
+  const [orbiAnalyzing, setOrbiAnalyzing] = useState(false);
+  const [orbiUpdating, setOrbiUpdating] = useState(false);
+  const lastUpdatedDate = orbiStats.updatedAt ? new Date(orbiStats.updatedAt).toLocaleDateString() : 'Unknown';
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
@@ -46,9 +57,10 @@ const Admin = () => {
   const loadData = async (token: string) => {
     try {
       setLoading(true);
-      const [serversRes, appealsRes] = await Promise.all([
+      const [serversRes, appealsRes, orbiRes] = await Promise.all([
         api.getServers(),
         api.getAppeals(token),
+        api.getOrbiStats(token),
       ]);
 
       const sortedServers = (serversRes.data || [])
@@ -59,6 +71,10 @@ const Admin = () => {
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
       setServers(sortedServers);
       setAppeals(appealsRes.data || []);
+      setOrbiStats({
+        count: orbiRes.data?.count || 0,
+        updatedAt: orbiRes.data?.updatedAt || null,
+      });
     } catch (error: any) {
       console.error('Error loading data:', error);
       if (error.response?.status === 401) {
@@ -141,6 +157,76 @@ const Admin = () => {
     }
   };
 
+  const handleOrbiFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    setOrbiFileName(file.name);
+    setOrbiCsv(text);
+    setOrbiSummary(null);
+    setOrbiPreview([]);
+    await runOrbiAnalysis(text);
+  };
+
+  const runOrbiAnalysis = async (csvText: string) => {
+    const token = localStorage.getItem('adminToken');
+    if (!token || !csvText) return;
+    try {
+      setOrbiAnalyzing(true);
+      const res = await api.uploadOrbiCsv(csvText, token, true);
+      setOrbiSummary(res.data);
+      setOrbiPreview(res.data?.preview || []);
+    } catch (error: any) {
+      console.error('Error analyzing Orbi CSV:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Failed to analyze CSV',
+        description: error.response?.data?.error || 'Upload failed',
+      });
+    } finally {
+      setOrbiAnalyzing(false);
+    }
+  };
+
+  const confirmUpdateOrbi = async () => {
+    const token = localStorage.getItem('adminToken');
+    if (!token || !orbiCsv) return;
+
+    if (!orbiSummary) {
+      toast({ variant: 'destructive', title: 'No analysis yet', description: 'Upload a CSV to see the summary before updating.' });
+      return;
+    }
+
+    const msg = `Are you sure you want to update the FUTF member list?\n` +
+      `Deleting: ${orbiSummary.deleted}\n` +
+      `Updating: ${orbiSummary.updated}\n` +
+      `Unchanged: ${orbiSummary.unchanged}\n` +
+      `Adding: ${orbiSummary.added}`;
+
+    if (!window.confirm(msg)) return;
+
+    try {
+      setOrbiUpdating(true);
+      const res = await api.uploadOrbiCsv(orbiCsv, token, false);
+      setOrbiSummary(res.data);
+      setOrbiPreview(res.data?.preview || []);
+      setOrbiStats((prev) => ({
+        count: res.data?.totalIncoming ?? prev.count,
+        updatedAt: new Date().toISOString(),
+      }));
+      toast({ title: 'Membership updated', description: 'The member list has been replaced.' });
+    } catch (error: any) {
+      console.error('Error updating Orbi CSV:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Update failed',
+        description: error.response?.data?.error || 'Upload failed',
+      });
+    } finally {
+      setOrbiUpdating(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-[calc(100vh-80px)] flex items-center justify-center">
@@ -177,8 +263,8 @@ const Admin = () => {
   }
 
   return (
-    <div className="container mx-auto p-4 max-w-6xl space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="container mx-auto p-4 pt-12 max-w-6xl space-y-12">
+      <div className="flex items-start justify-between gap-4 flex-wrap pb-2">
         <div className="flex items-center gap-3">
           <Shield className="w-8 h-8 text-primary" />
           <div>
@@ -186,15 +272,26 @@ const Admin = () => {
             <Badge variant="secondary" className="mt-1">Administrator</Badge>
           </div>
         </div>
-        <Button asChild variant="outline" className="gap-2">
-          <a href={ADMIN_DOCS_URL} target="_blank" rel="noreferrer">
-            <BookOpen className="w-4 h-4" />
-            Admin Docs
-          </a>
-        </Button>
+        <div className="flex items-start gap-2">
+          <div className="flex flex-col items-start gap-1">
+            <Button variant="default" className="gap-2" onClick={() => setOrbiDialogOpen(true)}>
+              <Upload className="w-4 h-4" />
+              Update FUTF members
+            </Button>
+            <div className="text-xs text-muted-foreground leading-snug text-left ml-1">
+              Updated: {lastUpdatedDate}
+            </div>
+          </div>
+          <Button asChild variant="outline" className="gap-2">
+            <a href={ADMIN_DOCS_URL} target="_blank" rel="noreferrer">
+              <BookOpen className="w-4 h-4" />
+              Admin Docs
+            </a>
+          </Button>
+        </div>
       </div>
 
-      <div className="bg-muted/40 border-2 border-border p-6 space-y-4">
+      <div className="bg-muted/40 border-2 border-border p-5 pt-4 space-y-4 mt-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-primary/10">
@@ -359,6 +456,85 @@ const Admin = () => {
           ))}
         </CardContent>
       </Card>
+
+      <Dialog open={orbiDialogOpen} onOpenChange={(open) => { setOrbiDialogOpen(open); if (!open) { setOrbiFileName(''); setOrbiCsv(''); setOrbiSummary(null); setOrbiPreview([]); } }}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Update FUTF member list</DialogTitle>
+            <DialogDescription>
+              Upload a fresh Orbi CSV export to replace the existing member list. We’ll show a summary before applying.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">CSV file</label>
+              <Input type="file" accept=".csv,text/csv" onChange={handleOrbiFile} />
+              {orbiFileName && <div className="text-xs text-muted-foreground">Selected: {orbiFileName}</div>}
+            </div>
+
+            {orbiSummary && (
+              <div className="space-y-3">
+                <div className="rounded-lg border border-border/70 bg-muted/40 p-3 grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <div className="font-semibold text-foreground">Current members</div>
+                    <div className="text-2xl font-bold text-foreground">{orbiSummary.totalExisting}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-semibold text-foreground">New members list</div>
+                    <div className="text-2xl font-bold text-foreground">{orbiSummary.totalIncoming}</div>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border/70 bg-muted/40 p-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div>Adding: <strong>{orbiSummary.added}</strong></div>
+                  <div>Updating: <strong>{orbiSummary.updated}</strong></div>
+                  <div>Unchanged: <strong>{orbiSummary.unchanged}</strong></div>
+                  <div>Deleting: <strong>{orbiSummary.deleted}</strong></div>
+                </div>
+              </div>
+            )}
+
+            {orbiPreview.length > 0 && (
+              <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
+                <div className="text-sm font-semibold mb-2">Preview (first {orbiPreview.length} rows)</div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="text-muted-foreground">
+                      <tr>
+                        <th className="text-left p-2">Name</th>
+                        <th className="text-left p-2">Membership ID</th>
+                        <th className="text-left p-2">Email</th>
+                        <th className="text-left p-2">Status</th>
+                        <th className="text-left p-2">Valid from</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orbiPreview.map((row, idx) => (
+                        <tr key={`preview-${idx}`} className="border-t border-border/50">
+                          <td className="p-2">{row.name || '—'}</td>
+                          <td className="p-2">{(row as any).membershipId || '—'}</td>
+                          <td className="p-2">{row.email}</td>
+                          <td className="p-2">{row.status}</td>
+                          <td className="p-2">{row.validFrom || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="flex flex-col sm:flex-row sm:justify-between gap-2">
+            <div className="text-xs text-muted-foreground">
+              We run a dry run automatically; Update replaces the entire member list with the uploaded CSV.
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={confirmUpdateOrbi} disabled={!orbiCsv || orbiAnalyzing || orbiUpdating}>
+                {orbiUpdating ? 'Updating...' : orbiAnalyzing ? 'Analyzing...' : 'Update list'}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -38,7 +38,7 @@ router.post('/register', async (req, res) => {
     let hasOrbiMembership = true;
     if (requiresOrbiMembership) {
       try {
-        const orbiResult = isOrbiMember(email);
+        const orbiResult = await isOrbiMember(email);
         hasOrbiMembership = orbiResult.member;
       } catch (err) {
         console.error('Membership validation failed', err);

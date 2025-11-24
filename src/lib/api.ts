@@ -94,6 +94,11 @@ export const getOrbiStats = (token: string) =>
     headers: { Authorization: `Bearer ${token}` },
   });
 
+export const uploadOrbiCsv = (csv: string, token: string, dryRun = false) =>
+  api.post('/orbi/upload', { csv, dryRun }, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
 // Appeals
 export const createAppeal = (data: {
   serverId: string;

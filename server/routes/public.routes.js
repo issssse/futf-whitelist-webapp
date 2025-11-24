@@ -46,7 +46,7 @@ router.get('/check-whitelist/:serverId', async (req, res) => {
 });
 
 // Get real names for multiple Minecraft usernames on a server
-router.post('/get-names/:serverId', async (req, res) => {
+router.get('/get-names/:serverId', async (req, res) => {
   try {
     const { serverId } = req.params;
     const { usernames } = req.body;
