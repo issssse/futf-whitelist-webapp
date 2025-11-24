@@ -5,6 +5,59 @@ const prisma = new PrismaClient();
 const APPEAL_POLICIES = ['never', 'non_student', 'non_member', 'always'];
 const MEMBERSHIP_ACCESS_LEVELS = ['member'];
 
+const normalizeRulesConfig = (rawRules) => {
+  if (!rawRules) {
+    return {
+      items: [],
+      markdownUrl: null,
+      pdfUrl: null,
+      mustAccept: false,
+    };
+  }
+
+  // If array of strings (legacy)
+  if (Array.isArray(rawRules)) {
+    return {
+      items: rawRules,
+      markdownUrl: null,
+      pdfUrl: null,
+      mustAccept: rawRules.length > 0,
+    };
+  }
+
+  if (typeof rawRules === 'string') {
+    return {
+      items: rawRules
+        .split('\n')
+        .map((r) => r.trim())
+        .filter(Boolean),
+      markdownUrl: null,
+      pdfUrl: null,
+      mustAccept: rawRules.trim().length > 0,
+    };
+  }
+
+  if (typeof rawRules === 'object') {
+    return {
+      items: Array.isArray(rawRules.items)
+        ? rawRules.items
+        : Array.isArray(rawRules.rules)
+          ? rawRules.rules
+          : [],
+      markdownUrl: rawRules.markdownUrl || rawRules.rulesMarkdownUrl || null,
+      pdfUrl: rawRules.pdfUrl || rawRules.rulesPdfUrl || null,
+      mustAccept: Boolean(rawRules.mustAccept || rawRules.requireRules),
+    };
+  }
+
+  return {
+    items: [],
+    markdownUrl: null,
+    pdfUrl: null,
+    mustAccept: false,
+  };
+};
+
 const normalizeAppealPolicy = (value) => {
   if (value && APPEAL_POLICIES.includes(value)) {
     // Treat non_member as the same flavour as non_student for compatibility.
@@ -21,23 +74,56 @@ const toServerPayload = (server) => {
     return null;
   }
 
+  const rulesConfig = normalizeRulesConfig(server.rules);
+
   return {
     ...server,
-    rules: Array.isArray(server.rules) ? server.rules : [],
+    rules: rulesConfig.items,
+    rulesMarkdownUrl: rulesConfig.markdownUrl,
+    rulesPdfUrl: rulesConfig.pdfUrl,
+    mustAcceptRules: rulesConfig.mustAccept,
   };
 };
 
 const normalizeRules = (rules) => {
+  if (!rules) {
+    return {
+      items: [],
+      markdownUrl: null,
+      pdfUrl: null,
+      mustAccept: false,
+    };
+  }
   if (Array.isArray(rules)) {
-    return rules;
+    return {
+      items: rules,
+      markdownUrl: null,
+      pdfUrl: null,
+      mustAccept: rules.length > 0,
+    };
   }
   if (typeof rules === 'string') {
-    return rules
-      .split('\n')
-      .map((rule) => rule.trim())
-      .filter(Boolean);
+    return {
+      items: rules
+        .split('\n')
+        .map((r) => r.trim())
+        .filter(Boolean),
+      markdownUrl: null,
+      pdfUrl: null,
+      mustAccept: rules.trim().length > 0,
+    };
   }
-  return [];
+  // object form
+  return {
+    items: Array.isArray(rules.items)
+      ? rules.items
+      : Array.isArray(rules.rules)
+        ? rules.rules
+        : [],
+    markdownUrl: rules.markdownUrl || rules.rulesMarkdownUrl || null,
+    pdfUrl: rules.pdfUrl || rules.rulesPdfUrl || null,
+    mustAccept: Boolean(rules.mustAccept || rules.requireRules),
+  };
 };
 
 async function getServerConfig(serverId) {
@@ -79,7 +165,12 @@ async function createServer(data) {
       requiredEmailDomain: data.requiredEmailDomain || null,
       appealPolicy,
       contact: data.contact || null,
-      rules: normalizeRules(data.rules),
+      rules: normalizeRules(data.rules || {
+        items: data.rules,
+        markdownUrl: data.rulesMarkdownUrl,
+        pdfUrl: data.rulesPdfUrl,
+        mustAccept: data.mustAcceptRules,
+      }),
       order: typeof data.order === 'number' ? data.order : count,
     },
   });
@@ -120,7 +211,21 @@ async function updateServer(serverId, data) {
       contact: data.contact || null,
       appealPolicy: nextAppealPolicy,
       rules:
-        data.rules !== undefined ? normalizeRules(data.rules) : undefined,
+        data.rules !== undefined
+          ? normalizeRules(data.rules || {
+            items: data.rules,
+            markdownUrl: data.rulesMarkdownUrl,
+            pdfUrl: data.rulesPdfUrl,
+            mustAccept: data.mustAcceptRules,
+          })
+          : data.rulesMarkdownUrl !== undefined || data.rulesPdfUrl !== undefined || data.mustAcceptRules !== undefined
+            ? normalizeRules({
+              items: data.rules ?? existing.rules,
+              markdownUrl: data.rulesMarkdownUrl,
+              pdfUrl: data.rulesPdfUrl,
+              mustAccept: data.mustAcceptRules,
+            })
+            : undefined,
     },
   });
   return toServerPayload(updated);

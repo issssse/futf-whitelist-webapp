@@ -30,6 +30,9 @@ interface EditableServer {
   required_email_domain: string | null;
   contact: string | null;
   rules: string[];
+  rules_markdown_url?: string | null;
+  rules_pdf_url?: string | null;
+  must_accept_rules?: boolean;
 }
 
 const ServerEdit = () => {
@@ -90,6 +93,9 @@ const ServerEdit = () => {
         required_email_domain: '@student.uu.se',
         contact: null,
         rules: [],
+        rules_markdown_url: '',
+        rules_pdf_url: '',
+        must_accept_rules: false,
       });
       setLoading(false);
     } else {
@@ -107,6 +113,9 @@ const ServerEdit = () => {
     required_email_domain: serverData.requiredEmailDomain || null,
     contact: serverData.contact || null,
     rules: serverData.rules || [],
+    rules_markdown_url: (serverData as any).rulesMarkdownUrl || null,
+    rules_pdf_url: (serverData as any).rulesPdfUrl || null,
+    must_accept_rules: Boolean((serverData as any).mustAcceptRules),
   });
 
   const loadServer = async () => {
@@ -137,6 +146,15 @@ const ServerEdit = () => {
       return;
     }
 
+    if (server.must_accept_rules && !server.rules_markdown_url) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Rules markdown URL is required when rules must be accepted.',
+      });
+      return;
+    }
+
     const payload = {
       id: server.id,
       name: server.name,
@@ -145,8 +163,16 @@ const ServerEdit = () => {
       accessLevel: server.accessLevel,
       requiredEmailDomain: server.required_email_domain,
       contact: server.contact,
-      rules: server.rules,
+      rules: {
+        items: server.rules,
+        markdownUrl: server.rules_markdown_url,
+        pdfUrl: server.rules_pdf_url,
+        mustAccept: server.must_accept_rules,
+      },
       appealPolicy: server.appeal_policy,
+      rulesMarkdownUrl: server.rules_markdown_url,
+      rulesPdfUrl: server.rules_pdf_url,
+      mustAcceptRules: server.must_accept_rules,
     };
 
     try {
@@ -322,17 +348,35 @@ const ServerEdit = () => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="rules">Server Rules (one per line)</Label>
-            <Textarea
-              id="rules"
-              value={server.rules.join('\n')}
-              onChange={(e) => setServer({
-                ...server,
-                rules: e.target.value.split('\n').filter(Boolean),
-              })}
-              placeholder="No griefing&#10;Be respectful&#10;Follow staff instructions"
-              rows={8}
+            <div className="flex items-center justify-between">
+              <Label htmlFor="rules-md">Rules Markdown URL</Label>
+              <span className="text-xs text-muted-foreground">Required if rules must be accepted</span>
+            </div>
+            <Input
+              id="rules-md"
+              value={server.rules_markdown_url || ''}
+              onChange={(e) => setServer({ ...server, rules_markdown_url: e.target.value || null })}
+              placeholder="https://mc2.tuppdev.futf.se/rules/survival.md"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="rules-pdf">Rules PDF URL (optional)</Label>
+            <Input
+              id="rules-pdf"
+              value={server.rules_pdf_url || ''}
+              onChange={(e) => setServer({ ...server, rules_pdf_url: e.target.value || null })}
+              placeholder="https://mc2.tuppdev.futf.se/rules/survival.pdf"
+            />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Switch
+              id="must-accept-rules"
+              checked={!!server.must_accept_rules}
+              onCheckedChange={(checked) => setServer({ ...server, must_accept_rules: !!checked })}
+            />
+            <Label htmlFor="must-accept-rules">Must accept rules before submitting</Label>
           </div>
 
           {!isNew && (

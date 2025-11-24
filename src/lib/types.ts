@@ -7,6 +7,9 @@ export interface Server {
   requiredEmailDomain?: string;
   contact?: string;
   rules: string[];
+  rulesMarkdownUrl?: string | null;
+  rulesPdfUrl?: string | null;
+  mustAcceptRules?: boolean;
   appealPolicy?: 'always' | 'non_student' | 'non_member' | 'never';
   order?: number;
 }

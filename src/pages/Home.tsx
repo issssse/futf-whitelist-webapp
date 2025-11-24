@@ -20,6 +20,8 @@ import * as api from '@/lib/api';
 import dashboardBg from '@/assets/dashboard-bg.jpg';
 import heroBg from '@/assets/hero-bg.jpg';
 import { cn } from '@/lib/utils';
+import ReactMarkdown, { type Components as MarkdownComponents } from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ServerType {
   id: string;
@@ -34,6 +36,12 @@ interface ServerType {
   appeal_policy?: 'always' | 'non_student' | 'non_member' | 'never';
   required_email_domain?: string | null;
   order?: number;
+  rulesMarkdownUrl?: string | null;
+  rulesPdfUrl?: string | null;
+  rules_markdown_url?: string | null;
+  rules_pdf_url?: string | null;
+  mustAcceptRules?: boolean;
+  must_accept_rules?: boolean;
 }
 
 interface ServerStatusState {
@@ -219,6 +227,7 @@ const Home = () => {
   const [servers, setServers] = useState<ServerType[]>([]);
   const [loadingServers, setLoadingServers] = useState(true);
   const [serverStatus, setServerStatus] = useState<Record<string, ServerStatusState>>({});
+  const [rulesMarkdownContent, setRulesMarkdownContent] = useState<string | null>(null);
   const statusPollers = useRef<Record<string, number>>({});
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const tabListRef = useRef<HTMLDivElement | null>(null);
@@ -424,6 +433,61 @@ const Home = () => {
   }, []);
 
   const showFinalSection = selectedAccess.mode === 'open' ? true : emailVerified;
+  const rulesMarkdownUrl = server?.rules_markdown_url || server?.rulesMarkdownUrl || null;
+  const rulesPdfUrl = server?.rules_pdf_url || server?.rulesPdfUrl || null;
+  const mustAcceptRules = Boolean(server?.must_accept_rules || server?.mustAcceptRules);
+  const renderedRulesMarkdown =
+    rulesMarkdownContent ||
+    (server?.rules?.length
+      ? server.rules.map((rule, idx) => `${idx + 1}. ${rule}`).join('\n')
+      : null);
+
+  const markdownComponents: MarkdownComponents = {
+    h1: ({ node, ...props }) => (
+      <h1
+        style={{ fontFamily: 'Helvetica, Arial, system-ui, -apple-system, sans-serif', marginTop: '1.6em', marginBottom: '0.4em', fontWeight: 700 }}
+        {...props}
+      />
+    ),
+    h2: ({ node, ...props }) => (
+      <h2
+        style={{ fontFamily: 'Helvetica, Arial, system-ui, -apple-system, sans-serif', marginTop: '1.4em', marginBottom: '0.35em', fontWeight: 700 }}
+        {...props}
+      />
+    ),
+    h3: ({ node, ...props }) => (
+      <h3
+        style={{ fontFamily: 'Helvetica, Arial, system-ui, -apple-system, sans-serif', marginTop: '1.2em', marginBottom: '0.3em', fontWeight: 600 }}
+        {...props}
+      />
+    ),
+    p: ({ node, ...props }) => (
+      <p
+        style={{ fontFamily: 'Helvetica, Arial, system-ui, -apple-system, sans-serif', lineHeight: 1.6, marginTop: '0.65em', marginBottom: '0.45em' }}
+        {...props}
+      />
+    ),
+    li: ({ node, children, ...props }) => (
+      <li
+        style={{ fontFamily: 'Helvetica, Arial, system-ui, -apple-system, sans-serif', lineHeight: 1.6, marginTop: '0.35em', marginBottom: '0.25em' }}
+        {...props}
+      >
+        {children}
+      </li>
+    ),
+    ul: ({ node, ...props }) => (
+      <ul
+        style={{ fontFamily: 'Helvetica, Arial, system-ui, -apple-system, sans-serif', paddingLeft: '1.3em', marginTop: '0.6em', marginBottom: '0.6em' }}
+        {...props}
+      />
+    ),
+    ol: ({ node, ...props }) => (
+      <ol
+        style={{ fontFamily: 'Helvetica, Arial, system-ui, -apple-system, sans-serif', paddingLeft: '1.3em', marginTop: '0.6em', marginBottom: '0.6em' }}
+        {...props}
+      />
+    ),
+  };
 
   useEffect(() => {
     if (!selectedAccess.appealsEnabled) {
@@ -434,6 +498,23 @@ const Home = () => {
   useEffect(() => {
     setLinkSent(false);
   }, [trimmedEmail]);
+
+  useEffect(() => {
+    if (!rulesMarkdownUrl) {
+      setRulesMarkdownContent(null);
+      return;
+    }
+    fetch(rulesMarkdownUrl)
+      .then((res) => (res.ok ? res.text() : null))
+      .then((text) => {
+        if (text !== null) {
+          setRulesMarkdownContent(text);
+        } else {
+          setRulesMarkdownContent(null);
+        }
+      })
+      .catch(() => setRulesMarkdownContent(null));
+  }, [rulesMarkdownUrl]);
 
   const syncVerifiedState = useCallback(() => {
     const storedEmail = (localStorage.getItem('verifiedEmail') || '').trim().toLowerCase();
@@ -1138,23 +1219,27 @@ const Home = () => {
                 {server?.name ? `${server.name} rules` : 'Server rules'}
               </span>
               <div className="flex items-center gap-3">
-                <a
-                  href="/rules-se.pdf"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline decoration-dotted underline-offset-4 hover:text-foreground"
-                >
-                  Open PDF
-                </a>
-                <span aria-hidden className="text-border">•</span>
-                <a
-                  href="/rules-se.md"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline decoration-dotted underline-offset-4 hover:text-foreground"
-                >
-                  View Markdown
-                </a>
+                {rulesPdfUrl && (
+                  <a
+                    href={rulesPdfUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline decoration-dotted underline-offset-4 hover:text-foreground"
+                  >
+                    Open PDF
+                  </a>
+                )}
+                {rulesPdfUrl && rulesMarkdownUrl && <span aria-hidden className="text-border">•</span>}
+                {rulesMarkdownUrl && (
+                  <a
+                    href={rulesMarkdownUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline decoration-dotted underline-offset-4 hover:text-foreground"
+                  >
+                    View Markdown
+                  </a>
+                )}
               </div>
             </div>
 
@@ -1164,14 +1249,16 @@ const Home = () => {
                 onScroll={handleRulesScroll}
                 className="max-h-[360px] overflow-y-auto rounded-lg bg-background/80 p-4 shadow-inner"
               >
-                {server?.rules && server.rules.length > 0 ? (
-                  <ul className="list-decimal space-y-2 pl-5 text-sm leading-relaxed text-foreground">
-                    {server.rules.map((rule, idx) => (
-                      <li key={`${server.id}-modal-rule-${idx}`} className="marker:text-primary">
-                        {rule}
-                      </li>
-                    ))}
-                  </ul>
+                {renderedRulesMarkdown ? (
+                  <div style={{ fontFamily: 'Helvetica, Arial, system-ui, -apple-system, sans-serif' }}>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={markdownComponents}
+                      className="prose prose-sm max-w-none text-foreground dark:prose-invert prose-headings:text-foreground prose-strong:text-foreground prose-li:marker:text-primary font-sans"
+                    >
+                      {renderedRulesMarkdown}
+                    </ReactMarkdown>
+                  </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">
                     Rules are not available for this server yet. Please contact an administrator for details.
@@ -1190,7 +1277,7 @@ const Home = () => {
             </div>
             <Button
               onClick={handleAcceptRules}
-              disabled={(server?.rules?.length || 0) > 0 ? !rulesScrollComplete || loading : loading}
+              disabled={(server?.rules?.length || 0) > 0 ? !rulesScrollComplete || loading : (!mustAcceptRules ? loading : !rulesScrollComplete || loading)}
             >
               {pendingSubmit ? 'Accept & submit' : 'Accept rules'}
             </Button>

@@ -150,9 +150,22 @@ router.get('/:serverId/check-access/:userId', async (req, res) => {
   }
 });
 
+const buildRulesPayload = (body, fallbackRules) => {
+  if (body.rules !== undefined) {
+    return body.rules;
+  }
+
+  return {
+    items: Array.isArray(body.rules) ? body.rules : fallbackRules,
+    markdownUrl: body.rulesMarkdownUrl ?? body.rules_markdown_url ?? null,
+    pdfUrl: body.rulesPdfUrl ?? body.rules_pdf_url ?? null,
+    mustAccept: body.mustAcceptRules ?? body.must_accept_rules ?? false,
+  };
+};
+
 // Create new server (admin only)
 router.post('/', authenticateAdmin, async (req, res) => {
-  const { id, name, description, ip, accessLevel, requiredEmailDomain, contact, rules, appealPolicy } = req.body;
+  const { id, name, description, ip, accessLevel, requiredEmailDomain, contact, appealPolicy } = req.body;
 
   if (!id || !name || !description || !ip) {
     return res.status(400).json({ error: 'ID, name, description, and IP are required' });
@@ -172,7 +185,10 @@ router.post('/', authenticateAdmin, async (req, res) => {
       accessLevel: accessLevel || 'open',
       requiredEmailDomain,
       contact,
-      rules: Array.isArray(rules) ? rules : [],
+      rules: buildRulesPayload(req.body, []),
+      rulesMarkdownUrl: req.body.rulesMarkdownUrl ?? req.body.rules_markdown_url,
+      rulesPdfUrl: req.body.rulesPdfUrl ?? req.body.rules_pdf_url,
+      mustAcceptRules: req.body.mustAcceptRules ?? req.body.must_accept_rules,
       appealPolicy: appealPolicy || 'never',
     });
 
@@ -198,7 +214,10 @@ router.put('/:serverId', authenticateAdmin, async (req, res) => {
       accessLevel: req.body.accessLevel,
       requiredEmailDomain: req.body.requiredEmailDomain,
       contact: req.body.contact,
-      rules: req.body.rules ?? server.rules,
+      rules: buildRulesPayload(req.body, server.rules),
+      rulesMarkdownUrl: req.body.rulesMarkdownUrl ?? req.body.rules_markdown_url,
+      rulesPdfUrl: req.body.rulesPdfUrl ?? req.body.rules_pdf_url,
+      mustAcceptRules: req.body.mustAcceptRules ?? req.body.must_accept_rules,
       appealPolicy: req.body.appealPolicy || server.appealPolicy || 'never',
     });
 
